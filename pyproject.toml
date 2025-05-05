@@ -26,3 +26,8 @@ convention = "google"
 branch = "main"
 version_toml = ["pyproject.toml:project.version"]
 build_command = "python -m pip install build; python -m build"
+
+[tool.semantic_release.commit_parser_options]
+major_types = ["breaking", "major"]
+minor_types = ["feat", "minor"]
+patch_types = ["fix", "perf", "patch"]
