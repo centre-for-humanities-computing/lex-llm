@@ -1,0 +1,21 @@
+[project]
+name = "lex-llm"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "Kenneth Enevoldsen", email = "kennethcenevoldsen@gmail.com" },
+]
+requires-python = ">=3.10"
+dependencies = []
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[dependency-groups]
+dev = [
+    "mypy>=1.15.0",
+    "pytest>=8.3.5",
+ "ruff>=0.11.8",
+]
