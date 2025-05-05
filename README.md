@@ -26,6 +26,6 @@ make install # install dependencies
 
 You can see all available commands using
 ```bash
-cat makefile # print the commands availalbe
+cat makefile # print the commands available
 ```
 
