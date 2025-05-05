@@ -2,7 +2,7 @@
 ## Development Guidelines
 
 ### Development Installation
-To set this repostory up for development please use the following
+To set this repository up for development please use the following
 
 ```bash
 # download the git repository
