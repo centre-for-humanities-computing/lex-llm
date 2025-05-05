@@ -1,7 +1,7 @@
 [project]
 name = "lex-llm"
 version = "0.1.0"
-description = "Add your description here"
+description = "The Lex LLM library used for running the Lex.llm agent."
 readme = "README.md"
 authors = [
     { name = "Kenneth Enevoldsen", email = "kennethcenevoldsen@gmail.com" },
