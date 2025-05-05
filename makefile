@@ -16,7 +16,7 @@ lint:
 lint-check:
 	@echo "--- 🧹 Check is project is linted ---"
 	uv run ruff format . --check						    # running ruff formatting
-	uv run ruff check **/*.py 						        # running ruff linting
+	uv run ruff check . 							        # running ruff linting
 
 test:
 	@echo "--- 🧪 Running tests ---"
