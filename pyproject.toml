@@ -1,0 +1,33 @@
+[project]
+name = "lex-llm"
+version = "0.1.0"
+description = "The Lex LLM library used for running the Lex.llm agent."
+readme = "README.md"
+authors = [
+    { name = "Kenneth Enevoldsen", email = "kennethcenevoldsen@gmail.com" },
+]
+requires-python = ">=3.10"
+dependencies = []
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[dependency-groups]
+dev = ["mypy>=1.15.0", "pytest>=8.3.5", "ruff>=0.11.8"]
+
+[tool.ruff]
+target-version = "py310"
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.semantic_release]
+branch = "main"
+version_toml = ["pyproject.toml:project.version"]
+build_command = "python -m pip install build; python -m build"
+
+[tool.semantic_release.commit_parser_options]
+major_types = ["breaking", "major"]
+minor_types = ["feat", "minor"]
+patch_types = ["fix", "perf", "patch"]
