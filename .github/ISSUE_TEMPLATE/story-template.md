@@ -8,13 +8,13 @@ assignees: ''
 ---
 
 **Description:**
-A short description of the story.
+_A short description of the story._
 
 **Acceptance criteria:**
-A list of concrete testable criteria that define when the story is fully implemented.
+_A list of concrete testable criteria that define when the story is fully implemented._
 
 **Technical details:**
-Optional technical details for context.
+_Optional technical details for context._
 
 **Design:**
-Optional details on design for context.
+_Optional details on design for context._
