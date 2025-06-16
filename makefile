@@ -2,8 +2,8 @@ install:
 	@echo "--- 🚀 Installing project ---"
 	uv sync
 
-generate-api:
-	@echo "--- 🔧 Generating API client ---"
+generate-api-docker: # Can be run without installing openapi-generator-cli
+	@echo "--- 🔧 Generating API client (docker) ---"
 	@mkdir -p build
 	docker run --rm \
 		-v ${PWD}:/local \
@@ -13,8 +13,7 @@ generate-api:
 		-o /local/build/lex-db-client \
 		--additional-properties=packageName=lex_db_client,projectName=lex-db-client
 
-# Alternative without Docker (requires openapi-generator to be installed)
-generate-api-local:
+generate-api:
 	@echo "--- 🔧 Generating API client (local) ---"
 	@mkdir -p build
 	openapi-generator generate \
@@ -47,6 +46,7 @@ test:
 
 pr:
 	@echo "--- 🚀 Running PR checks ---"
+	make generate-api
 	make lint
 	make static-type-check
 	make test
