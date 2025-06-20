@@ -28,7 +28,7 @@ clean-api:
 
 static-type-check:
 	@echo "--- 🔍 Running static type check ---"
-	mypy src/ --config-file mypy.ini
+	mypy src/
 
 lint:
 	@echo "--- 🧹 Running linters ---"
