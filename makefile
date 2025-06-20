@@ -16,7 +16,7 @@ generate-api-docker: # Can be run without installing openapi-generator-cli
 generate-api:
 	@echo "--- 🔧 Generating API client (local) ---"
 	@mkdir -p build
-	uv run openapi-generator-cli generate \
+	uv run openapi-generator generate \
 		-i openapi/lex-db.yaml \
 		-g python \
 		-o build/lex_db_api \
