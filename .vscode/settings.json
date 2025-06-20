@@ -1,5 +1,5 @@
 {
     "python.analysis.extraPaths": [
-        "./build/lex-db-client"
+        "./build/lex_db_api"
     ]
 }

@@ -1,18 +1,8 @@
-import sys
-import os
-
-sys.path.insert(
-    0,
-    os.path.abspath(
-        os.path.join(os.path.dirname(__file__), "../../build/lex-db-client")
-    ),
-)
-
-from lex_db_client.configuration import Configuration  # type: ignore
-from lex_db_client.api.lex_db_api import LexDbApi  # type: ignore
-from lex_db_client.models.full_text_search_request import FullTextSearchRequest  # type: ignore
-from lex_db_client.models.vector_search_request import VectorSearchRequest  # type: ignore
-from lex_db_client.api_client import ApiClient  # type: ignore
+from lex_db_api.configuration import Configuration  # type: ignore
+from lex_db_api.api.lex_db_api import LexDbApi  # type: ignore
+from lex_db_api.models.full_text_search_request import FullTextSearchRequest  # type: ignore
+from lex_db_api.models.vector_search_request import VectorSearchRequest  # type: ignore
+from lex_db_api.api_client import ApiClient  # type: ignore
 
 
 def main() -> None:
@@ -35,22 +25,22 @@ def main() -> None:
 
     print("\nTesting /api/search ...")
     try:
-        req = FullTextSearchRequest(query="Rundetårn", limit=2)
-        results = api.full_text_search_api_search_post(req)
-        print("FullTextSearchResults:", results)
+        req_fts = FullTextSearchRequest(query="Rundetårn", limit=2)
+        results_fts = api.full_text_search_api_search_post(req_fts)
+        print("FullTextSearchResults:", results_fts)
     except Exception as e:
         print("Error calling /api/search:", e)
 
     print("\nTesting /api/vector-search ...")
     try:
-        req = VectorSearchRequest(
+        req_vector = VectorSearchRequest(
             vector_index_name="small_003",
             query_text="Hvad er Rundetårn?",
             embedding_model_choice="openai_small_003",
             top_k=2,
         )
-        results = api.vector_search_api_vector_search_post(req)
-        print("VectorSearchResults:", results)
+        results_vector = api.vector_search_api_vector_search_post(req_vector)
+        print("VectorSearchResults:", results_vector)
     except Exception as e:
         print("Error calling /api/vector-search:", e)
 
