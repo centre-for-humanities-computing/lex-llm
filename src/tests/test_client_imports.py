@@ -7,7 +7,7 @@ def test_client_path_exists() -> None:
     repo_root = Path(__file__).parent.parent.parent
     client_path = repo_root / "build" / "lex_db_api"
     assert client_path.exists(), (
-        "Client directory not found. Did you run 'make generate-client'?"
+        "Client directory not found. Did you run 'make generate-api'?"
     )
 
 

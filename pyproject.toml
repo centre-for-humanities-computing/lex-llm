@@ -8,9 +8,11 @@ authors = [
 ]
 requires-python = ">=3.10"
 dependencies = [
+    "litellm>=1.72.6",
     "openapi-generator>=1.0.6",
     "pydantic>=2.11.7",
     "python-dateutil>=2.9.0.post0",
+    "smolagents[openai]>=1.18.0",
     "urllib3>=2.4.0",
 ]
 
