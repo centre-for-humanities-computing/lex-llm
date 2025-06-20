@@ -1,0 +1,13 @@
+{
+  "configurations": [
+    {
+      "name": "Python: manual_lex_db_api_test",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/src/scripts/manual_lex_db_api_test.py",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}"
+      }
+    }
+  ]
+}

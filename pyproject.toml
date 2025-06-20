@@ -7,7 +7,12 @@ authors = [
     { name = "Kenneth Enevoldsen", email = "kennethcenevoldsen@gmail.com" },
 ]
 requires-python = ">=3.10"
-dependencies = []
+dependencies = [
+    "openapi-generator>=1.0.6",
+    "pydantic>=2.11.7",
+    "python-dateutil>=2.9.0.post0",
+    "urllib3>=2.4.0",
+]
 
 [build-system]
 requires = ["hatchling"]
@@ -31,3 +36,13 @@ build_command = "python -m pip install build; python -m build"
 major_types = ["breaking", "major"]
 minor_types = ["feat", "minor"]
 patch_types = ["fix", "perf", "patch"]
+
+[tool.mypy]
+python_version = "3.8"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+exclude = "build/"
+
+[tool.mypy."plugins.numpy.*"]
+ignore_missing_imports = true

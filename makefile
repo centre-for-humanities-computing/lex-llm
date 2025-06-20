@@ -1,8 +1,30 @@
-
-
 install:
 	@echo "--- 🚀 Installing project ---"
 	uv sync
+
+generate-api-docker: # Can be run without installing openapi-generator-cli
+	@echo "--- 🔧 Generating API client (docker) ---"
+	@mkdir -p build
+	docker run --rm \
+		-v ${PWD}:/local \
+		openapitools/openapi-generator-cli generate \
+		-i /local/openapi/lex-db.yaml \
+		-g python \
+		-o /local/build/lex_db_api \
+		--additional-properties=packageName=lex_db_api
+
+generate-api:
+	@echo "--- 🔧 Generating API client (local) ---"
+	@mkdir -p build
+	uv run openapi-generator generate \
+		-i openapi/lex-db.yaml \
+		-g python \
+		-o build/lex_db_api \
+		--additional-properties=packageName=lex_db_api
+
+clean-api:
+	@echo "--- 🧹 Cleaning generated client ---"
+	rm -rf build/
 
 static-type-check:
 	@echo "--- 🔍 Running static type check ---"
@@ -24,6 +46,7 @@ test:
 
 pr:
 	@echo "--- 🚀 Running PR checks ---"
+	make generate-api
 	make lint
 	make static-type-check
 	make test
