@@ -33,7 +33,7 @@ The main API is defined in [`src/lex_llm/api/routes.py`](src/lex_llm/api/routes.
 You can call the workflow endpoint using `curl` as follows:
 
 ```bash
-curl -N -X POST "http://0.0.0.0:8000/workflows/test-workflow/run" \
+curl -N -X POST "http://0.0.0.0:8001/workflows/test_workflow/run" \
   -H "Content-Type: application/json" \
   -d '{
     "user_input": "Tell me about artificial intelligence.",

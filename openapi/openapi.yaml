@@ -33,6 +33,39 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /workflows/metadata:
+    get:
+      summary: All Workflow Metadata
+      operationId: all_workflow_metadata_workflows_metadata_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+  /workflows/{workflow_id}/metadata:
+    get:
+      summary: Workflow Metadata
+      operationId: workflow_metadata_workflows__workflow_id__metadata_get
+      parameters:
+      - name: workflow_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Workflow Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /health:
     get:
       summary: Health Check
@@ -42,10 +75,7 @@ paths:
           description: Successful Response
           content:
             application/json:
-              schema:
-                additionalProperties: true
-                type: object
-                title: Response Health Check Health Get
+              schema: {}
   /:
     get:
       tags:
