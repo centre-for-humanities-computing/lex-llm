@@ -2,6 +2,10 @@ install:
 	@echo "--- 🚀 Installing project ---"
 	uv sync
 
+install-dev:
+	@echo "--- 🚀 Installing development dependencies ---"
+	uv sync --dev
+
 generate-api-docker: # Can be run without installing openapi-generator-cli
 	@echo "--- 🔧 Generating API client (docker) ---"
 	@mkdir -p build
@@ -50,4 +54,22 @@ pr:
 	make lint
 	make static-type-check
 	make test
-	@echo "Ready to make a PR"
+	make generate-openapi-schema
+	@echo "--- ✅ All checks passed ---"
+	@echo "--- 🚀 Ready to make a PR ---"
+
+run:
+	@echo "--- ▶️ Running the application ---"
+	make generate-openapi-schema
+	uv run main.py
+
+run-dev: install-dev
+	@echo "--- ▶️ Running the application in dev mode (hot reload) ---"
+	make generate-openapi-schema
+	uvicorn main:app --reload --host 0.0.0.0 --port 8000
+
+generate-openapi-schema:
+	@echo "--- 📜 Generating OpenAPI schema ---"
+	uv run generate_openapi.py main:app --out openapi/openapi.yaml
+	@echo "OpenAPI schema generated successfully."
+

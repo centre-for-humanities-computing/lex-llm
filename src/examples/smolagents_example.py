@@ -2,11 +2,10 @@ import argparse
 import os
 from smolagents import CodeAgent, LiteLLMModel, tool  # type: ignore
 from lex_db_api.configuration import Configuration
-from lex_db_api.models.full_text_search_request import FullTextSearchRequest
 from lex_db_api.models.vector_search_request import VectorSearchRequest
 from lex_db_api.api_client import ApiClient
 from lex_db_api.api.lex_db_api import LexDbApi
-from lex_db_api.models.full_text_search_results import FullTextSearchResults
+from lex_db_api.models.search_results import SearchResults
 from lex_db_api.models.vector_search_results import VectorSearchResults
 
 
@@ -36,6 +35,8 @@ def full_text_search_tool(query: str) -> str:
     """
     try:
         results = search_lex_db(query)
+        if not results.entries:
+            return "No results found."
         return "\n".join(
             [
                 f"Source {i}: {result.xhtml_md}"
@@ -47,7 +48,7 @@ def full_text_search_tool(query: str) -> str:
         raise (e)
 
 
-def search_lex_db(query: str) -> FullTextSearchResults:
+def search_lex_db(query: str) -> SearchResults:
     """
     Search the LexDB for a given query.
 
@@ -58,8 +59,7 @@ def search_lex_db(query: str) -> FullTextSearchResults:
         str: The search results.
     """
     try:
-        req = FullTextSearchRequest(query=query, limit=5)
-        results = lexdb_api.full_text_search_api_search_post(req)
+        results = lexdb_api.get_articles(query, limit=5)
         return results
     except Exception as e:
         print(f"Error during LexDB search: {e}")
@@ -80,6 +80,8 @@ def vector_search_tool(query: str, top_k: int = 5) -> str:
     """
     try:
         results = vector_search_lex_db(query, top_k)
+        if not results.results:
+            return "No results found."
         return "\n".join(
             [
                 f"Source {i}: {result.chunk_text}"
@@ -101,12 +103,10 @@ def vector_search_lex_db(query: str, top_k: int = 5) -> VectorSearchResults:
     """
     try:
         req = VectorSearchRequest(
-            vector_index_name="small_003",
             query_text=query,
-            embedding_model_choice="openai_small_003",
             top_k=top_k,
         )
-        results = lexdb_api.vector_search_api_vector_search_post(req)
+        results = lexdb_api.vector_search("small_003", req)
         return results
     except Exception as e:
         print(f"Error during LexDB vector search: {e}")
@@ -140,12 +140,16 @@ def main() -> None:
     if args.mode == "rag":
         vector_search_result = vector_search_lex_db(args.prompt)
         print("Vector Search Result:", vector_search_result)
-        vector_search_result_str = "\n".join(
-            [
-                f"Source {i}: {result.chunk_text}"
-                for i, result in enumerate(vector_search_result.results)
-            ]
-        )
+        if not vector_search_result.results:
+            print("No results found.")
+            vector_search_result_str = "No results found."
+        else:
+            vector_search_result_str = "\n".join(
+                [
+                    f"Source {i}: {result.chunk_text}"
+                    for i, result in enumerate(vector_search_result.results)
+                ]
+            )
         rag_prompt = [
             {
                 "role": "system",

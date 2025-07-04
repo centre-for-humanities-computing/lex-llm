@@ -1,0 +1,125 @@
+openapi: 3.1.0
+info:
+  title: Lex LLM Orchestration API
+  description: API for orchestrating LLM tasks.
+  version: 0.1.0
+paths:
+  /workflows/{workflow_id}/run:
+    post:
+      summary: Run Workflow
+      operationId: run_workflow_workflows__workflow_id__run_post
+      parameters:
+      - name: workflow_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Workflow Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WorkflowRunRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /health:
+    get:
+      summary: Health Check
+      operationId: health_check_health_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                additionalProperties: true
+                type: object
+                title: Response Health Check Health Get
+  /:
+    get:
+      tags:
+      - Health
+      summary: Health Check
+      operationId: health_check__get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+components:
+  schemas:
+    ConversationMessage:
+      properties:
+        role:
+          type: string
+          pattern: ^(system|user|assistant)$
+          title: Role
+        content:
+          type: string
+          title: Content
+      type: object
+      required:
+      - role
+      - content
+      title: ConversationMessage
+    HTTPValidationError:
+      properties:
+        detail:
+          items:
+            $ref: '#/components/schemas/ValidationError'
+          type: array
+          title: Detail
+      type: object
+      title: HTTPValidationError
+    ValidationError:
+      properties:
+        loc:
+          items:
+            anyOf:
+            - type: string
+            - type: integer
+          type: array
+          title: Location
+        msg:
+          type: string
+          title: Message
+        type:
+          type: string
+          title: Error Type
+      type: object
+      required:
+      - loc
+      - msg
+      - type
+      title: ValidationError
+    WorkflowRunRequest:
+      properties:
+        user_input:
+          type: string
+          title: User Input
+        conversation_history:
+          items:
+            $ref: '#/components/schemas/ConversationMessage'
+          type: array
+          title: Conversation History
+        conversation_id:
+          type: string
+          title: Conversation Id
+          description: A unique identifier for the conversation (UUID)
+      type: object
+      required:
+      - user_input
+      - conversation_id
+      title: WorkflowRunRequest

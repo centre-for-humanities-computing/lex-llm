@@ -25,9 +25,9 @@ paths:
     get:
       tags:
       - lex-db
-      summary: Get Tables
+      summary: Get a list of tables in the database
       description: Get a list of tables in the database.
-      operationId: get_tables_api_tables_get
+      operationId: get_tables
       responses:
         '200':
           description: Successful Response
@@ -39,20 +39,27 @@ paths:
                     type: string
                   type: array
                 type: object
-                title: Response Get Tables Api Tables Get
-  /api/vector-search:
+                title: Response Get Tables
+  /api/vector-search/indexes/{index_name}/query:
     post:
       tags:
       - lex-db
-      summary: Vector Search
+      summary: Search a vector index for similar content to the query text
       description: Search a vector index for similar content to the query text.
-      operationId: vector_search_api_vector_search_post
+      operationId: vector_search
+      parameters:
+      - name: index_name
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Index Name
       requestBody:
+        required: true
         content:
           application/json:
             schema:
               $ref: '#/components/schemas/VectorSearchRequest'
-        required: true
       responses:
         '200':
           description: Successful Response
@@ -66,26 +73,101 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
-  /api/search:
-    post:
+  /api/articles:
+    get:
       tags:
       - lex-db
-      summary: Full Text Search
-      description: Search lexicon entries using full-text search.
-      operationId: full_text_search_api_search_post
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/FullTextSearchRequest'
-        required: true
+      summary: "An endpoint for filtering articles based on metadata such as id, text\
+        \ search, etc. Query parameters are used for filtering (e.g. GET /articles?query=Rundet\xE5\
+        rn, or GET /articles?ids=1&ids=2&ids=5)"
+      description: Filter articles based on metadata such as id, text search, etc.
+      operationId: get_articles
+      parameters:
+      - name: query
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Text search in articles
+          title: Query
+        description: Text search in articles
+      - name: ids
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: List of article IDs (comma-separated, JSON list, or repeated)
+          title: Ids
+        description: List of article IDs (comma-separated, JSON list, or repeated)
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 100
+          minimum: 1
+          description: Maximum number of results
+          default: 50
+          title: Limit
+        description: Maximum number of results
       responses:
         '200':
           description: Successful Response
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/FullTextSearchResults'
+                $ref: '#/components/schemas/SearchResults'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/vector-search/indexes:
+    get:
+      tags:
+      - lex-db
+      summary: List all vector indexes and their metadata
+      description: Return a list of all vector indexes and their metadata.
+      operationId: list_vector_indexes
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                items:
+                  additionalProperties: true
+                  type: object
+                type: array
+                title: Response List Vector Indexes
+  /api/vector-search/indexes/{index_name}:
+    get:
+      tags:
+      - lex-db
+      summary: Get metadata for a specific vector index
+      description: Return metadata for a specific vector index.
+      operationId: get_vector_index
+      parameters:
+      - name: index_name
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Index Name
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+                title: Response Get Vector Index
         '422':
           description: Validation Error
           content:
@@ -94,21 +176,16 @@ paths:
                 $ref: '#/components/schemas/HTTPValidationError'
 components:
   schemas:
-    FullTextSearchRequest:
+    HTTPValidationError:
       properties:
-        query:
-          type: string
-          title: Query
-        limit:
-          type: integer
-          title: Limit
-          default: 50
+        detail:
+          items:
+            $ref: '#/components/schemas/ValidationError'
+          type: array
+          title: Detail
       type: object
-      required:
-      - query
-      title: FullTextSearchRequest
-      description: Full-text search request model.
-    FullTextSearchResult:
+      title: HTTPValidationError
+    SearchResult:
       properties:
         id:
           type: integer
@@ -119,26 +196,28 @@ components:
         rank:
           type: number
           title: Rank
+        permalink:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Permalink
       type: object
       required:
       - id
       - xhtml_md
       - rank
-      title: FullTextSearchResult
-      description: Single result from a full-text search.
-    FullTextSearchResults:
+      title: SearchResult
+      description: Single result from a search.
+    SearchResults:
       properties:
         entries:
           items:
-            $ref: '#/components/schemas/FullTextSearchResult'
+            $ref: '#/components/schemas/SearchResult'
           type: array
           title: Entries
         total:
           type: integer
           title: Total
-        query:
-          type: string
-          title: Query
         limit:
           type: integer
           title: Limit
@@ -146,19 +225,9 @@ components:
       required:
       - entries
       - total
-      - query
       - limit
-      title: FullTextSearchResults
-      description: Result of a full-text search.
-    HTTPValidationError:
-      properties:
-        detail:
-          items:
-            $ref: '#/components/schemas/ValidationError'
-          type: array
-          title: Detail
-      type: object
-      title: HTTPValidationError
+      title: SearchResults
+      description: Results of a search.
     ValidationError:
       properties:
         loc:
@@ -182,24 +251,16 @@ components:
       title: ValidationError
     VectorSearchRequest:
       properties:
-        vector_index_name:
-          type: string
-          title: Vector Index Name
         query_text:
           type: string
           title: Query Text
-        embedding_model_choice:
-          type: string
-          title: Embedding Model Choice
         top_k:
           type: integer
           title: Top K
           default: 5
       type: object
       required:
-      - vector_index_name
       - query_text
-      - embedding_model_choice
       title: VectorSearchRequest
       description: Vector search request model.
     VectorSearchResult:
