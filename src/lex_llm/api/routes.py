@@ -7,6 +7,7 @@ from .orchestrator import WorkflowOrchestrator
 
 router = APIRouter()
 
+
 @router.post("/workflows/{workflow_id}/run")
 async def run_workflow(
     workflow_id: str, request: WorkflowRunRequest
@@ -34,4 +35,3 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
 
 router.lifespan_context = lifespan
-
