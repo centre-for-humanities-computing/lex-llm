@@ -1,42 +1,26 @@
-import uuid
-import asyncio
-from typing import AsyncGenerator, List
-from .event_emitter import EventEmitter
-from .event_models import (
-    WorkflowRunRequest,
-    WorkflowStepData,
-    Source,
-    ConversationMessage,
-)  # <-- add ConversationMessage
+from collections.abc import AsyncGenerator
+from lex_llm.api.event_models import WorkflowRunRequest
+from lex_llm.orchestrator import WorkflowOrchestrator
 
 
-class WorkflowOrchestrator:
-    def __init__(self, workflow_id: str):
-        self.workflow_id: str = workflow_id
-        self.conversation_history: List[ConversationMessage] = []
+def run_test_workflow(request: WorkflowRunRequest) -> AsyncGenerator[str, None]:
+    """Implements the test workflow logic, previously in _run_workflow."""
+    # Import here to avoid circular imports
+    from lex_llm.api.event_emitter import EventEmitter
+    from lex_llm.api.event_models import (
+        WorkflowStepData,
+        Source,
+    )
+    import asyncio
+    import uuid
 
-    async def execute(self, request: WorkflowRunRequest) -> AsyncGenerator[str, None]:
-        """Execute workflow and yield NDJSON events"""
+    async def _run() -> AsyncGenerator[str, None]:
         emitter = EventEmitter(conversation_id=request.conversation_id)
-        self.conversation_history = request.conversation_history
-        self.conversation_history.append(
-            ConversationMessage(role="user", content=request.user_input)
-        )  # Add user input to conversation history
-        try:
-            yield emitter.stream_start(conversation_history=self.conversation_history)
-            async for event in self._run_workflow(request, emitter):
-                yield event
-            yield emitter.stream_end(conversation_history=self.conversation_history)
-        except Exception as e:
-            yield emitter.error(str(e))
-
-    async def _run_workflow(
-        self, request: WorkflowRunRequest, emitter: EventEmitter
-    ) -> AsyncGenerator[str, None]:
-        # --- Start accumulating assistant output ---
-        assistant_chunks = []
-
-        # Step 1: Query Analysis
+        # orchestrator.conversation_history = request.conversation_history
+        # orchestrator.conversation_history.append(
+        #     ConversationMessage(role="user", content=request.user_input)
+        # )
+        # --- Step 1: Query Analysis ---
         analysis_step = str(uuid.uuid4())
         yield emitter.workflow_step(
             WorkflowStepData(
@@ -59,26 +43,21 @@ class WorkflowOrchestrator:
                 update=update_msg,
             )
         )
-        assistant_chunks.append(update_msg)
         reasoning1 = "Let me analyze this query step by step. "
         yield emitter.reasoning_chunk(reasoning1)
-        assistant_chunks.append(reasoning1)
         await asyncio.sleep(0.2)
         reasoning2 = (
             "The user seems to be asking about a complex topic that will require "
         )
         yield emitter.reasoning_chunk(reasoning2)
-        assistant_chunks.append(reasoning2)
         await asyncio.sleep(0.1)
         reasoning3 = (
             "multiple sources of information. I should search my knowledge base first, "
         )
         yield emitter.reasoning_chunk(reasoning3)
-        assistant_chunks.append(reasoning3)
         await asyncio.sleep(0.15)
         reasoning4 = "then cross-reference with external sources to provide a comprehensive answer."
         yield emitter.reasoning_chunk(reasoning4)
-        assistant_chunks.append(reasoning4)
         await asyncio.sleep(0.2)
         yield emitter.workflow_step(
             WorkflowStepData(
@@ -126,7 +105,6 @@ class WorkflowOrchestrator:
             "similarity_threshold": 0.8,
         }
         yield emitter.tool_call("search_knowledge_base", tool_call_kb)
-        assistant_chunks.append(f"[Tool: search_knowledge_base] {tool_call_kb}")
         update_kb = "Found 15 potentially relevant documents, ranking by relevance..."
         yield emitter.workflow_step(
             WorkflowStepData(
@@ -136,7 +114,6 @@ class WorkflowOrchestrator:
                 update=update_kb,
             )
         )
-        assistant_chunks.append(update_kb)
         # Tool call for web search
         tool_call_web = {
             "query": request.user_input,
@@ -144,7 +121,6 @@ class WorkflowOrchestrator:
             "recency_days": 30,
         }
         yield emitter.tool_call("web_search", tool_call_web)
-        assistant_chunks.append(f"[Tool: web_search] {tool_call_web}")
         await asyncio.sleep(0.3)
         update_web = "Retrieving and processing web search results..."
         yield emitter.workflow_step(
@@ -155,7 +131,6 @@ class WorkflowOrchestrator:
                 update=update_web,
             )
         )
-        assistant_chunks.append(update_web)
         # Complete knowledge base search
         yield emitter.workflow_step(
             WorkflowStepData(
@@ -195,9 +170,7 @@ class WorkflowOrchestrator:
             ),
         ]
         yield emitter.sources(sources)
-        # Add sources as a markdown list
-        sources_md = "\n".join([f"- [{s.title}]({s.url})" for s in sources])
-        assistant_chunks.append("Sources:\n" + sources_md)
+
         # Complete external search
         yield emitter.workflow_step(
             WorkflowStepData(
@@ -220,23 +193,19 @@ class WorkflowOrchestrator:
         await asyncio.sleep(0.3)
         reasoning5 = "Now I need to synthesize information from multiple sources. "
         yield emitter.reasoning_chunk(reasoning5)
-        assistant_chunks.append(reasoning5)
         await asyncio.sleep(0.15)
         reasoning6 = (
             "I'll start with the foundational concepts from the knowledge base, "
         )
         yield emitter.reasoning_chunk(reasoning6)
-        assistant_chunks.append(reasoning6)
         await asyncio.sleep(0.1)
         reasoning7 = (
             "then incorporate recent developments from external sources to provide "
         )
         yield emitter.reasoning_chunk(reasoning7)
-        assistant_chunks.append(reasoning7)
         await asyncio.sleep(0.12)
         reasoning8 = "a comprehensive and up-to-date response."
         yield emitter.reasoning_chunk(reasoning8)
-        assistant_chunks.append(reasoning8)
         await asyncio.sleep(0.2)
         update_syn = "Cross-referencing sources and identifying key themes..."
         yield emitter.workflow_step(
@@ -247,7 +216,6 @@ class WorkflowOrchestrator:
                 update=update_syn,
             )
         )
-        assistant_chunks.append(update_syn)
         # Tool call for fact checking
         tool_call_fact = {
             "claims": [
@@ -257,7 +225,6 @@ class WorkflowOrchestrator:
             "sources": [s.id for s in sources[:3]],
         }
         yield emitter.tool_call("fact_checker", tool_call_fact)
-        assistant_chunks.append(f"[Tool: fact_checker] {tool_call_fact}")
         await asyncio.sleep(0.4)
         update_syn2 = "Fact-checking complete, organizing response structure..."
         yield emitter.workflow_step(
@@ -268,7 +235,6 @@ class WorkflowOrchestrator:
                 update=update_syn2,
             )
         )
-        assistant_chunks.append(update_syn2)
         yield emitter.workflow_step(
             WorkflowStepData(
                 step_id=synthesis_step,
@@ -290,17 +256,14 @@ class WorkflowOrchestrator:
         await asyncio.sleep(0.2)
         reasoning9 = "I'll structure my response to be clear and informative. "
         yield emitter.reasoning_chunk(reasoning9)
-        assistant_chunks.append(reasoning9)
         await asyncio.sleep(0.1)
         reasoning10 = (
             "I'll start with a brief overview, then dive into specific details, "
         )
         yield emitter.reasoning_chunk(reasoning10)
-        assistant_chunks.append(reasoning10)
         await asyncio.sleep(0.12)
         reasoning11 = "and conclude with practical implications."
         yield emitter.reasoning_chunk(reasoning11)
-        assistant_chunks.append(reasoning11)
         await asyncio.sleep(0.15)
         # Generate response text in chunks
         response_parts = [
@@ -324,13 +287,10 @@ class WorkflowOrchestrator:
             "multimodal capabilities. As these technologies mature, we can expect more sophisticated ",
             "applications that better understand context and nuance in human communication.",
         ]
-        response_text = ""
         for part in response_parts:
-            for chunk in self._chunk_text(part, 25):
+            for chunk in [part[i : i + 25] for i in range(0, len(part), 25)]:
                 yield emitter.text_chunk(chunk)
-                response_text += chunk
                 await asyncio.sleep(0.08)
-        assistant_chunks.append(response_text)
         await asyncio.sleep(0.1)
         yield emitter.workflow_step(
             WorkflowStepData(
@@ -341,10 +301,30 @@ class WorkflowOrchestrator:
             )
         )
         # --- At the end, add the assistant message to conversation history ---
-        full_assistant_message = "\n\n".join(assistant_chunks)
-        self.conversation_history.append(
-            ConversationMessage(role="assistant", content=full_assistant_message)
-        )
+        # (Now handled by orchestrator)
 
-    def _chunk_text(self, text: str, chunk_size: int = 20) -> List[str]:
-        return [text[i : i + chunk_size] for i in range(0, len(text), chunk_size)]
+    return _run()
+
+
+def get_metadata() -> dict:
+    """Returns metadata for the discovery endpoint."""
+    return {
+        "workflow_id": "test_workflow",
+        "description": "Performs a mocked multi-step research and synthesis workflow.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "user_input": {"type": "string"},
+                "conversation_id": {"type": "string"},
+                "conversation_history": {"type": "array", "items": {"type": "object"}},
+            },
+            "required": ["user_input", "conversation_id", "conversation_history"],
+        },
+    }
+
+
+def get_workflow() -> WorkflowOrchestrator:
+    """Returns the executable workflow object for the orchestrator."""
+    return WorkflowOrchestrator(
+        workflow_id="test_workflow", workflow_func=run_test_workflow
+    )
