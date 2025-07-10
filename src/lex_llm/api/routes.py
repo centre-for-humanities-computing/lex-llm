@@ -26,9 +26,9 @@ async def run_workflow(
                 "available_workflows": available,
             },
         )
-    orchestrator = mod.get_workflow()
+    orchestrator = mod.get_workflow(request)
     return StreamingResponse(
-        orchestrator.execute(request),
+        orchestrator.execute(),
         media_type="application/x-ndjson",
         headers={"Cache-Control": "no-cache"},
     )

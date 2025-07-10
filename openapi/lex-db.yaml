@@ -196,16 +196,20 @@ components:
         rank:
           type: number
           title: Rank
-        permalink:
+        url:
           anyOf:
           - type: string
           - type: 'null'
-          title: Permalink
+          title: Url
+        title:
+          type: string
+          title: Title
       type: object
       required:
       - id
       - xhtml_md
       - rank
+      - title
       title: SearchResult
       description: Single result from a search.
     SearchResults:

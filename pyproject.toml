@@ -16,6 +16,8 @@ dependencies = [
     "smolagents[openai]>=1.18.0",
     "urllib3>=2.4.0",
     "uvicorn>=0.35.0",
+    "griptape[all]>=1.7.3",
+    "pytest-asyncio>=1.0.0",
 ]
 
 [build-system]
