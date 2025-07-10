@@ -31,7 +31,15 @@ class EventEmitter:
     def stream_start(
         self, conversation_history: Optional[List[ConversationMessage]] = None
     ) -> str:
-        data = StreamStartData(conversation_history=conversation_history)
+        """Emits the stream_start event using model_validate for type safety."""
+        history_as_dicts = None
+        if conversation_history:
+            history_as_dicts = [msg.model_dump() for msg in conversation_history]
+
+        # Use model_validate to create the object from a dictionary
+        data = StreamStartData.model_validate(
+            {"conversation_history": history_as_dicts}
+        )
         return self.emit("stream_start", data)
 
     def text_chunk(self, text: str) -> str:
@@ -53,7 +61,13 @@ class EventEmitter:
     def stream_end(
         self, conversation_history: Optional[List[ConversationMessage]] = None
     ) -> str:
-        data = StreamEndData(conversation_history=conversation_history)
+        """Emits the stream_end event using model_validate for type safety."""
+        history_as_dicts = None
+        if conversation_history:
+            history_as_dicts = [msg.model_dump() for msg in conversation_history]
+
+        # Use model_validate to create the object from a dictionary
+        data = StreamEndData.model_validate({"conversation_history": history_as_dicts})
         return self.emit("stream_end", data)
 
     def error(self, message: str, code: Optional[str] = None) -> str:

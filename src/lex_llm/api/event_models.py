@@ -1,15 +1,11 @@
 from pydantic import BaseModel, Field
-from typing import List, Optional, Dict, Any, Union
+from typing import Dict, List, Optional, Any, Union, Literal
 
 
 # Request/Response Models
 class ConversationMessage(BaseModel):
-    role: str = Field(..., pattern="^(system|user|assistant)$")
+    role: Literal["system", "user", "assistant", "developer", "tool", "function"]
     content: str
-
-
-class ConversationHistoryData(BaseModel):
-    conversation_history: List[ConversationMessage]
 
 
 class WorkflowRunRequest(BaseModel):
@@ -18,7 +14,6 @@ class WorkflowRunRequest(BaseModel):
     conversation_id: str = Field(
         ..., description="A unique identifier for the conversation (UUID)"
     )
-    # session_id removed, not in docs
 
 
 class Source(BaseModel):
