@@ -37,7 +37,7 @@ class LexDBConnector:
                     ids=str(
                         list(
                             {
-                                int(result["source_article_id"])
+                                int(result.source_article_id)
                                 for result in vector_search_result.results
                             }
                         )
@@ -46,10 +46,10 @@ class LexDBConnector:
                 if search_results.entries:
                     return [
                         LexArticle(
-                            id=result["id"],
-                            title=result["title"],
-                            text=result["xhtml_md"],
-                            url=result["url"],
+                            id=result.id,
+                            title=result.title,
+                            text=result.xhtml_md,
+                            url=result.url,
                         )
                         for result in search_results.entries
                     ]
