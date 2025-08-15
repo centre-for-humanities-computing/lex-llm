@@ -15,7 +15,7 @@ generate-api: # Can be run without installing openapi-generator-cli
 		-i /local/openapi/lex-db.yaml \
 		-g python \
 		-o /local/build/lex_db_api \
-		--additional-properties=packageName=lex_db_api
+		--additional-properties=packageName=lex_db_api 
 
 clean-api:
 	@echo "--- 🧹 Cleaning generated client ---"

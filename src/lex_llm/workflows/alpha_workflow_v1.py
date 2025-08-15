@@ -1,8 +1,8 @@
 import json
-from typing import AsyncGenerator, Dict, Any
+from typing import AsyncGenerator, Dict, Any, List
 from ..api.orchestrator import Orchestrator
 from ..api.event_emitter import EventEmitter
-from ..api.event_models import WorkflowRunRequest, Source
+from ..api.event_models import ConversationMessage, WorkflowRunRequest, Source
 from ..api.connectors.lex_db_connector import LexArticle, LexDBConnector
 from ..api.connectors.openai_provider import OpenAIProvider
 
@@ -15,7 +15,9 @@ async def search_knowledge_base(
     lex_db_connector = LexDBConnector()
     user_input = context.get("user_input", "")
 
-    documents = await lex_db_connector.vector_search(query=user_input, top_k=10, index_name="openai_large_3_sections")
+    documents = await lex_db_connector.vector_search(
+        query=user_input, top_k=10, index_name="openai_large_3_sections"
+    )
     context["retrieved_docs"] = documents
 
     # sources = [Source(id=doc.id, title=doc.title, url=doc.url) for doc in documents]
@@ -32,7 +34,7 @@ async def generate_response(
     the sources actually used in the response.
     """
     llm_provider = OpenAIProvider()
-    retrieved_docs: list[LexArticle] = context.get("retrieved_docs", [])
+    retrieved_docs: List[LexArticle] = context.get("retrieved_docs", [])
     user_input = context.get("user_input", "").strip()
     conversation_history = context.get("conversation_history", [])
 
@@ -67,18 +69,16 @@ async def generate_response(
     # Prepare messages
     if not conversation_history:
         messages = [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_input},
+            ConversationMessage(role="system", content=system_prompt),
+            ConversationMessage(role="user", content=user_input),
         ]
     else:
-        # Reuse history, append updated system context
-        history_as_dicts = [
-            msg.model_dump() if hasattr(msg, "model_dump") else msg
+        messages = [
+            ConversationMessage(role=msg.role, content=msg.content)
             for msg in conversation_history
-        ]
-        messages = history_as_dicts + [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_input},
+        ] + [
+            ConversationMessage(role="system", content=system_prompt),
+            ConversationMessage(role="user", content=user_input),
         ]
 
     # Stream response from LLM
@@ -95,17 +95,16 @@ async def generate_response(
         llm_provider=llm_provider,
     )
     # Emit only the used sources (not all retrieved ones)
-    yield emitter.sources([
-        Source(id=src.id, title=src.title, url=src.url)
-        for src in used_sources
-    ])
+    yield emitter.sources(
+        [Source(id=src.id, title=src.title, url=src.url) for src in used_sources]
+    )
 
 
 async def extract_used_sources_via_llm(
     response: str,
-    retrieved_docs: list[LexArticle],
+    retrieved_docs: List[LexArticle],
     llm_provider: OpenAIProvider,
-) -> list[LexArticle]:
+) -> List[LexArticle]:
     """
     Uses an LLM to analyze the generated response and return only the Document objects
     that were actually used in generating the answer.
@@ -113,9 +112,9 @@ async def extract_used_sources_via_llm(
     if not response.strip() or "Jeg beklager, men jeg er ikke i stand" in response:
         return []  # No sources used if deferral message was returned
 
-    source_descriptions = "\n".join([
-        f"ID: {doc.id} | Title: {doc.title}" for doc in retrieved_docs
-    ])
+    source_descriptions = "\n".join(
+        [f"ID: {doc.id} | Title: {doc.title}" for doc in retrieved_docs]
+    )
 
     attribution_prompt = f"""
 Analyze the assistant's response below and determine which of the provided sources were actually used to generate the answer.
@@ -137,15 +136,12 @@ Do not include explanations or markdown formatting.
     messages = [
         {
             "role": "system",
-            "content": "You are a careful analyst who identifies which sources were used in a response from a chatbot."
+            "content": "You are a careful analyst who identifies which sources were used in a response from a chatbot.",
         },
-        {
-            "role": "user",
-            "content": attribution_prompt
-        }
+        {"role": "user", "content": attribution_prompt},
     ]
     try:
-        attribution_result = await llm_provider.generate(messages) # type: ignore
+        attribution_result = await llm_provider.generate(messages)  # type: ignore
         attribution_result = attribution_result.strip()
         # Clean up common LLM quirks
         if attribution_result.startswith("```json"):
