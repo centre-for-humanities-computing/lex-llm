@@ -2,7 +2,7 @@ import json
 from typing import AsyncGenerator, Dict, Any, List
 from ..api.orchestrator import Orchestrator
 from ..api.event_emitter import EventEmitter
-from ..api.event_models import ConversationMessage, WorkflowRunRequest, Source
+from ..api.event_models import WorkflowRunRequest, Source
 from ..api.connectors.lex_db_connector import LexArticle, LexDBConnector
 from ..api.connectors.openai_provider import OpenAIProvider
 
@@ -33,10 +33,15 @@ async def generate_response(
     mimics the tone of the sources, answers in Danish, avoids links, and emits only
     the sources actually used in the response.
     """
+    """
+    Generates a response using retrieved documents, enforces strict factual grounding,
+    mimics the tone of the sources, answers in Danish, avoids links, and emits only
+    the sources actually used in the response.
+    """
     llm_provider = OpenAIProvider()
     retrieved_docs: List[LexArticle] = context.get("retrieved_docs", [])
-    user_input = context.get("user_input", "").strip()
-    conversation_history = context.get("conversation_history", [])
+    user_input: str = context.get("user_input", "").strip()
+    conversation_history: List[Dict[str, str]] = context.get("conversation_history", [])
 
     if not retrieved_docs:
         # If no documents were retrieved, defer immediately
@@ -69,21 +74,18 @@ async def generate_response(
     # Prepare messages
     if not conversation_history:
         messages = [
-            ConversationMessage(role="system", content=system_prompt),
-            ConversationMessage(role="user", content=user_input),
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_input},
         ]
     else:
-        messages = [
-            ConversationMessage(role=msg.role, content=msg.content)
-            for msg in conversation_history
-        ] + [
-            ConversationMessage(role="system", content=system_prompt),
-            ConversationMessage(role="user", content=user_input),
-        ]
+        messages = conversation_history + [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_input},
+        ]  # type: ignore
 
     # Stream response from LLM
     full_response = ""
-    async for chunk in llm_provider.generate_stream(messages):
+    async for chunk in llm_provider.generate_stream(messages):  # type: ignore
         full_response += chunk
         yield emitter.text_chunk(chunk)
     context["final_response"] = full_response
