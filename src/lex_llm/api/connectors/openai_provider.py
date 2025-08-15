@@ -14,6 +14,13 @@ class LLMProvider(ABC):
         """Generates a response as a stream of text chunks."""
         yield ""
 
+    @abstractmethod
+    async def generate(
+        self, messages: List[ConversationMessage]
+    ) -> str:
+        """Generates a response as a single text chunk."""
+        return ""
+
 
 class OpenAIProvider(LLMProvider):
     """Implementation for OpenAI's API."""
@@ -29,3 +36,12 @@ class OpenAIProvider(LLMProvider):
             content = chunk.choices[0].delta.content
             if content:
                 yield content
+
+    async def generate(
+        self, messages: List[ConversationMessage]
+    ) -> str:
+        """Generates a response as a single text chunk."""
+        response = ""
+        async for chunk in self.generate_stream(messages):
+            response += chunk
+        return response

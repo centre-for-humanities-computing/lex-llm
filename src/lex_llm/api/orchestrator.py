@@ -3,7 +3,7 @@ from typing import Callable, Dict, Any, AsyncGenerator, List
 from .event_emitter import EventEmitter
 from .event_models import ConversationMessage, WorkflowRunRequest, WorkflowStepData
 
-StepFunc = Callable[[Dict[str, Any], EventEmitter], AsyncGenerator[str, None]]
+StepFunc = Callable[[Dict[str, Any], EventEmitter], AsyncGenerator[str, None] | AsyncGenerator[None, None]]
 
 
 class Orchestrator:
@@ -37,7 +37,8 @@ class Orchestrator:
 
                 # The actual execution of the step
                 async for event in step_func(self.context, self.emitter):
-                    yield event
+                    if event:
+                        yield event
 
                 yield self.emitter.workflow_step(
                     WorkflowStepData(
