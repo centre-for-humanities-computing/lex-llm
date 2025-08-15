@@ -6,7 +6,7 @@ install-dev:
 	@echo "--- 🚀 Installing development dependencies ---"
 	uv sync --dev
 
-generate-api-docker: # Can be run without installing openapi-generator-cli
+generate-api: # Can be run without installing openapi-generator-cli
 	@echo "--- 🔧 Generating API client (docker) ---"
 	@mkdir -p build
 	docker run --rm \
@@ -15,16 +15,7 @@ generate-api-docker: # Can be run without installing openapi-generator-cli
 		-i /local/openapi/lex-db.yaml \
 		-g python \
 		-o /local/build/lex_db_api \
-		--additional-properties=packageName=lex_db_api
-
-generate-api:
-	@echo "--- 🔧 Generating API client (local) ---"
-	@mkdir -p build
-	uv run openapi-generator generate \
-		-i openapi/lex-db.yaml \
-		-g python \
-		-o build/lex_db_api \
-		--additional-properties=packageName=lex_db_api
+		--additional-properties=packageName=lex_db_api 
 
 clean-api:
 	@echo "--- 🧹 Cleaning generated client ---"
@@ -32,7 +23,7 @@ clean-api:
 
 static-type-check:
 	@echo "--- 🔍 Running static type check ---"
-	mypy src
+	uv run mypy src
 
 lint:
 	@echo "--- 🧹 Running linters ---"
@@ -66,7 +57,7 @@ run:
 run-dev: install-dev
 	@echo "--- ▶️ Running the application in dev mode (hot reload) ---"
 	make generate-openapi-schema
-	uvicorn main:app --reload --host 0.0.0.0 --port 8000
+	uvicorn main:app --reload --host 0.0.0.0 --port 10000
 
 generate-openapi-schema:
 	@echo "--- 📜 Generating OpenAPI schema ---"

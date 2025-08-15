@@ -45,7 +45,7 @@ jobs:
       - name: Generate OpenAPI client
         shell: bash
         run: |
-          make generate-api-docker
+          make generate-api
 
       - name: Run tests
         shell: bash
