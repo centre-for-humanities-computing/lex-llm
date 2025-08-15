@@ -1,3 +1,6 @@
+include .env
+export $(shell sed 's/=.*//' .env)
+
 install:
 	@echo "--- 🚀 Installing project ---"
 	uv sync

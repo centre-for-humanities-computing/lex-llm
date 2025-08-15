@@ -3,13 +3,14 @@ from typing import AsyncGenerator, Dict, Any, List
 from ..api.orchestrator import Orchestrator
 from ..api.event_emitter import EventEmitter
 from ..api.event_models import ConversationMessage, WorkflowRunRequest, Source
-from ..api.connectors.lex_db_connector import LexArticle, LexDBConnector
+from ..api.connectors.lex_db_connector import LexArticle, LexArticle, LexDBConnector
 from ..api.connectors.openai_provider import OpenAIProvider
 
 
 # Step 1: Search the knowledge base
 async def search_knowledge_base(
     context: Dict[str, Any], emitter: EventEmitter
+) -> AsyncGenerator[None, None]:
 ) -> AsyncGenerator[None, None]:
     """Queries the KB and prepares sources for emission."""
     lex_db_connector = LexDBConnector()
@@ -20,6 +21,8 @@ async def search_knowledge_base(
     )
     context["retrieved_docs"] = documents
 
+    # sources = [Source(id=doc.id, title=doc.title, url=doc.url) for doc in documents]
+    yield
     # sources = [Source(id=doc.id, title=doc.title, url=doc.url) for doc in documents]
     yield
 
@@ -33,7 +36,24 @@ async def generate_response(
     mimics the tone of the sources, answers in Danish, avoids links, and emits only
     the sources actually used in the response.
     """
+    """
+    Generates a response using retrieved documents, enforces strict factual grounding,
+    mimics the tone of the sources, answers in Danish, avoids links, and emits only
+    the sources actually used in the response.
+    """
     llm_provider = OpenAIProvider()
+    retrieved_docs: list[LexArticle] = context.get("retrieved_docs", [])
+    user_input = context.get("user_input", "").strip()
+    conversation_history = context.get("conversation_history", [])
+
+    if not retrieved_docs:
+        # If no documents were retrieved, defer immediately
+        deferral_message = "Jeg beklager, men jeg er ikke i stand til at besvare dit spørgsmål ud fra Lex' artikler."
+        yield emitter.text_chunk(deferral_message)
+        context["final_response"] = deferral_message
+        return
+
+    # Format retrieved documents for the prompt
     retrieved_docs: List[LexArticle] = context.get("retrieved_docs", [])
     user_input = context.get("user_input", "").strip()
     conversation_history = context.get("conversation_history", [])
