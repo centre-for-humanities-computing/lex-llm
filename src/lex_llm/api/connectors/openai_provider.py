@@ -15,9 +15,7 @@ class LLMProvider(ABC):
         yield ""
 
     @abstractmethod
-    async def generate(
-        self, messages: List[ConversationMessage]
-    ) -> str:
+    async def generate(self, messages: List[ConversationMessage]) -> str:
         """Generates a response as a single text chunk."""
         return ""
 
