@@ -23,6 +23,7 @@ generate-api:
 	@echo "--- 🔧 Generating API client (docker) ---"
 	@mkdir -p build
 	docker run --rm \
+		--user $(shell id -u):$(shell id -g) \
 		-v ${PWD}:/local \
 		openapitools/openapi-generator-cli generate \
 		-i /local/openapi/lex-db.yaml \
