@@ -8,6 +8,7 @@ from pathlib import Path
 import re
 import sys
 
+
 def fix_license_in_pyproject():
     """Fix the license field in the generated pyproject.toml"""
     pyproject_path = Path("build/lex_db_api/pyproject.toml")
@@ -17,7 +18,7 @@ def fix_license_in_pyproject():
         sys.exit(1)
 
     print(f"🔧 Fixing license in {pyproject_path}")
-    
+
     try:
         # Read the file
         with open(pyproject_path, "r", encoding="utf-8") as f:
@@ -37,6 +38,7 @@ def fix_license_in_pyproject():
     except Exception as e:
         print(f"❌ Failed to fix pyproject.toml: {e}")
         sys.exit(1)
+
 
 if __name__ == "__main__":
     fix_license_in_pyproject()
