@@ -27,12 +27,6 @@ generate-api:
 		-g python \
 		-o /local/build/lex_db_api \
 		--additional-properties=packageName=lex_db_api,pyproject=true
-	
-	@echo "--- 🛠 Fixing license in CI-safe way ---"
-	# Use shell redirection via runner-owned process
-	cp build/lex_db_api/pyproject.toml /tmp/pyproject.bak
-	sed 's/license = "NoLicense"/license = "MIT"/g' /tmp/pyproject.bak > build/lex_db_api/pyproject.toml
-	rm /tmp/pyproject.bak
 
 clean-api:
 	@echo "--- 🧹 Cleaning generated client ---"
