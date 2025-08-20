@@ -57,9 +57,31 @@ class Orchestrator:
 
         # After all steps, construct the final history and end the stream
         final_assistant_message = self.context.get("final_response", "")
-        updated_history = self.request.conversation_history + [
+        sources = self.context.get("sources", [])
+        system_prompt = self.context.get("system_prompt", "")
+        new_history = []
+        if system_prompt:
+            new_history.append(
+                ConversationMessage(role="system", content=system_prompt)
+            )
+        if sources:
+            new_history.append(
+                ConversationMessage(
+                    role="system",
+                    content="## Artikler:\n"
+                    + "\n".join(
+                        [
+                            f"Titel: {source.title}\nIndhold: {source.text}"
+                            for source in sources
+                        ]
+                    ),
+                )
+            )
+
+        new_history += [
             ConversationMessage(role="user", content=self.request.user_input),
             ConversationMessage(role="assistant", content=final_assistant_message),
         ]
+        updated_history = self.request.conversation_history + new_history
 
         yield self.emitter.stream_end(conversation_history=updated_history)

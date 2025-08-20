@@ -1,21 +1,37 @@
+# Makefile for the Lex LLM project
+
+.PHONY: install run static-type-check lint lint-check test pr help
+
+# Default target
+default: help
+
 install:
 	@echo "--- 🚀 Installing project ---"
+	make generate-api
+	uv venv
+	uv pip install -e build/lex_db_api  # Installs lex_db_api as a package
 	uv sync
 
 install-dev:
 	@echo "--- 🚀 Installing development dependencies ---"
+	make generate-api
+	uv venv
+	uv pip install -e build/lex_db_api  # Installs lex_db_api as a package
 	uv sync --dev
 
-generate-api: # Can be run without installing openapi-generator-cli
+generate-api:
 	@echo "--- 🔧 Generating API client (docker) ---"
 	@mkdir -p build
 	docker run --rm \
+		--user $(shell id -u):$(shell id -g) \
 		-v ${PWD}:/local \
 		openapitools/openapi-generator-cli generate \
 		-i /local/openapi/lex-db.yaml \
 		-g python \
 		-o /local/build/lex_db_api \
-		--additional-properties=packageName=lex_db_api 
+		--additional-properties=packageName=lex_db_api,pyproject=true
+	@echo "--- 🛠 Fixing pyproject.toml license with Python ---"
+	python3 fix_pyproject_license.py
 
 clean-api:
 	@echo "--- 🧹 Cleaning generated client ---"
@@ -41,7 +57,7 @@ test:
 
 pr:
 	@echo "--- 🚀 Running PR checks ---"
-	make generate-api
+	make install
 	make lint
 	make static-type-check
 	make test
@@ -64,3 +80,15 @@ generate-openapi-schema:
 	uv run generate_openapi.py main:app --out openapi/openapi.yaml
 	@echo "OpenAPI schema generated successfully."
 
+help:
+	@echo "Makefile for the Lex LLM project"
+	@echo ""
+	@echo "Available commands:"
+	@echo "  install            Install project dependencies"
+	@echo "  run                Run the application"
+	@echo "  static-type-check  Run static type checks"
+	@echo "  lint               Run linters"
+	@echo "  lint-check         Check if the project is linted"
+	@echo "  test               Run tests"
+	@echo "  pr                 Run all checks for a pull request"
+	@echo "  help               Show this help message"
