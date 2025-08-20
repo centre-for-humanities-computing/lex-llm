@@ -7,12 +7,14 @@ default: help
 
 install:
 	@echo "--- 🚀 Installing project ---"
+	make generate-api
 	uv venv
 	uv pip install -e build/lex_db_api  # Installs lex_db_api as a package
 	uv sync
 
 install-dev:
 	@echo "--- 🚀 Installing development dependencies ---"
+	make generate-api
 	uv venv
 	uv pip install -e build/lex_db_api  # Installs lex_db_api as a package
 	uv sync --dev
@@ -27,6 +29,8 @@ generate-api:
 		-g python \
 		-o /local/build/lex_db_api \
 		--additional-properties=packageName=lex_db_api,pyproject=true
+	@echo "--- 🛠 Fixing pyproject.toml license with Python ---"
+	python3 fix_pyproject_license.py
 
 clean-api:
 	@echo "--- 🧹 Cleaning generated client ---"

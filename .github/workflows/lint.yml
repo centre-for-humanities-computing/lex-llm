@@ -19,14 +19,6 @@ jobs:
         with:
           enable-cache: true
       
-      - name: Generate API
-        run: make generate-api
-        
-      - name: Fix pyproject.toml license
-        run: |
-          echo "--- 🛠 Fixing pyproject.toml license ---"
-          sed -i 's/license = "NoLicense"/license = "MIT"/' build/lex_db_api/pyproject.toml
-      
       - name: Install dependencies
         run: make install
 
