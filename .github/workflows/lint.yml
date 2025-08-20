@@ -22,6 +22,11 @@ jobs:
       - name: Install dependencies
         run: make install
 
+      - name: Fix pyproject.toml license
+        run: |
+          echo "--- 🛠 Fixing pyproject.toml license ---"
+          sed -i 's/license = "NoLicense"/license = "MIT"/' build/lex_db_api/pyproject.toml
+
       - name: Lint
         id: lint
         run: |
