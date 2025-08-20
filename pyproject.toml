@@ -18,6 +18,7 @@ dependencies = [
     "uvicorn>=0.35.0",
     "griptape[all]>=1.7.3",
     "pytest-asyncio>=1.0.0",
+    "lex-db-api",
 ]
 
 [build-system]
@@ -55,3 +56,6 @@ mypy_path = ["src"]
 module = "lex_db_api.*"
 ignore_missing_imports = true
 disallow_untyped_defs = false
+
+[tool.uv.sources]
+lex-db-api = { path = "build/lex_db_api", editable = true }

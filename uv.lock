@@ -1439,12 +1439,32 @@ wheels = [
 ]
 
 [[package]]
+name = "lex-db-api"
+version = "1.0.0"
+source = { editable = "build/lex_db_api" }
+dependencies = [
+    { name = "pydantic" },
+    { name = "python-dateutil" },
+    { name = "typing-extensions" },
+    { name = "urllib3" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "pydantic", specifier = ">=2" },
+    { name = "python-dateutil", specifier = ">=2.8.2" },
+    { name = "typing-extensions", specifier = ">=4.7.1" },
+    { name = "urllib3", specifier = ">=2.1.0,<3.0.0" },
+]
+
+[[package]]
 name = "lex-llm"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "fastapi" },
     { name = "griptape", extra = ["all"] },
+    { name = "lex-db-api" },
     { name = "litellm" },
     { name = "openapi-generator" },
     { name = "pydantic" },
@@ -1466,6 +1486,7 @@ dev = [
 requires-dist = [
     { name = "fastapi", specifier = ">=0.115.14" },
     { name = "griptape", extras = ["all"], specifier = ">=1.7.3" },
+    { name = "lex-db-api", editable = "build/lex_db_api" },
     { name = "litellm", specifier = ">=1.72.6" },
     { name = "openapi-generator", specifier = ">=1.0.6" },
     { name = "pydantic", specifier = ">=2.11.7" },
