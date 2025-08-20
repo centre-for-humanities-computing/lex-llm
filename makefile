@@ -26,9 +26,10 @@ generate-api:
 		-i /local/openapi/lex-db.yaml \
 		-g python \
 		-o /local/build/lex_db_api \
-        --additional-properties=packageName=lex_db_api,pyproject=true
-	@echo "--- 🛠 Fixing pyproject.toml license ---"
-	@sed -i 's/license = "NoLicense"/license = "MIT"/' build/lex_db_api/pyproject.toml
+		--additional-properties=packageName=lex_db_api,pyproject=true
+	@echo "--- ✅ Fixing permissions and license ---"
+	sed 's/license = "NoLicense"/license = "MIT"/g' build/lex_db_api/pyproject.toml > build/lex_db_api/pyproject.toml.tmp && \
+		mv build/lex_db_api/pyproject.toml.tmp build/lex_db_api/pyproject.toml
 	@echo "API client generated successfully."
 
 clean-api:
