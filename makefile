@@ -1,6 +1,6 @@
 # Makefile for the Lex LLM project
 
-.PHONY: install run static-type-check lint lint-check test pr help
+.PHONY: install run static-type-check lint lint-check test pr help clean-api generate-api install-dev run-dev generate-openapi-schema deploy-staging
 
 # Default target
 default: help
@@ -80,6 +80,13 @@ generate-openapi-schema:
 	uv run generate_openapi.py main:app --out openapi/openapi.yaml
 	@echo "OpenAPI schema generated successfully."
 
+deploy-staging:
+	@echo "--- 🚀 Deploying staging build ---"
+	sudo systemctl daemon-reload
+	sudo systemctl enable lex-llm-staging.service
+	sudo systemctl restart lex-llm-staging.service
+	sudo systemctl status lex-llm-staging.service --no-pager
+
 help:
 	@echo "Makefile for the Lex LLM project"
 	@echo ""
@@ -91,4 +98,5 @@ help:
 	@echo "  lint-check         Check if the project is linted"
 	@echo "  test               Run tests"
 	@echo "  pr                 Run all checks for a pull request"
+	@echo "  deploy-staging     Deploy the staging build"
 	@echo "  help               Show this help message"

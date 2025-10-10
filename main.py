@@ -1,10 +1,13 @@
 """
 Main entry point for the Lex LLM Orchestration API.
 """
-
+import os
 import uvicorn
 from fastapi import FastAPI
 from lex_llm.api.routes import router
+
+host = os.getenv("DEPLOY_HOST", "http://localhost")
+port = int(os.getenv("DEPLOY_PORT", "8001"))
 
 app = FastAPI(
     title="Lex LLM Orchestration API",
@@ -23,8 +26,8 @@ def main() -> None:
     """Run the FastAPI application."""
     uvicorn.run(
         "main:app",
-        host="0.0.0.0",
-        port=8001,
+        host=host,
+        port=port,
         reload=False,
     )
 
