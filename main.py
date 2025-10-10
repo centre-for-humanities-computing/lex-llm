@@ -6,8 +6,7 @@ import uvicorn
 from fastapi import FastAPI
 from lex_llm.api.routes import router
 
-host = os.getenv("DEPLOY_HOST", "http://localhost")
-port = int(os.getenv("DEPLOY_PORT", "8001"))
+
 
 app = FastAPI(
     title="Lex LLM Orchestration API",
@@ -24,6 +23,8 @@ async def health_check():
 
 def main() -> None:
     """Run the FastAPI application."""
+    host = os.getenv("DEPLOY_HOST", "0.0.0.0")
+    port = int(os.getenv("DEPLOY_PORT", "8001"))
     uvicorn.run(
         "main:app",
         host=host,
