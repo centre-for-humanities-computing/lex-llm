@@ -23,7 +23,7 @@ async def health_check():
 
 def main() -> None:
     """Run the FastAPI application."""
-    host = os.getenv("DEPLOY_HOST", "0.0.0.0")
+    host = os.getenv("DEPLOY_DOMAIN", "0.0.0.0")
     port = int(os.getenv("DEPLOY_PORT", "8001"))
     uvicorn.run(
         "main:app",

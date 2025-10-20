@@ -9,7 +9,7 @@ from lex_db_api.configuration import Configuration
 from lex_db_api.models.vector_search_request import VectorSearchRequest
 
 lexdb_client = ApiClient(
-    configuration=Configuration(host=os.getenv("DB_HOST", "http://localhost")+":"+os.getenv("DB_PORT", "8000"))
+    configuration=Configuration(host=os.getenv("DB_HOST", "http://localhost:8000"))
 )
 lexdb_api = LexDbApi(api_client=lexdb_client)
 
