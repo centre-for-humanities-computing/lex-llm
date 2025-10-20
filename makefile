@@ -1,6 +1,6 @@
 # Makefile for the Lex LLM project
 
-.PHONY: install run static-type-check lint lint-check test pr help
+.PHONY: install run static-type-check lint lint-check test pr help clean-api generate-api install-dev run-dev generate-openapi-schema
 
 # Default target
 default: help
