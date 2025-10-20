@@ -1,11 +1,11 @@
 """
 Main entry point for the Lex LLM Orchestration API.
 """
+
 import os
 import uvicorn
 from fastapi import FastAPI
 from lex_llm.api.routes import router
-
 
 
 app = FastAPI(
