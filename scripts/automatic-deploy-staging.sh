@@ -5,7 +5,10 @@ REPO_DIR="/apps/lex-llm-staging/"
 DEPLOY_SCRIPT="./scripts/deploy-staging.sh"
 
 # --- Script Logic ---
-
+# --- Add Start Timestamp ---
+echo "============================================================"
+echo "STARTING DEPLOYMENT CHECK at $(date '+%Y-%m-%d %H:%M:%S')"
+echo "============================================================"
 # Go to the repository directory
 cd "$REPO_DIR" || { echo "ERROR: Could not change directory to $REPO_DIR"; exit 1; }
 
@@ -55,8 +58,10 @@ if [ "$LOCAL_SHA" != "$REMOTE_SHA" ]; then
     else
         echo "--- Deployment FAILED! Check $DEPLOY_SCRIPT for errors. ---"
     fi
+    echo "--- Deployment FINISHED at $(date '+%Y-%m-%d %H:%M:%S') ---"
 else
     echo "No new changes on main. Staging environment is up to date."
 fi
-
+echo "Check FINISHED at $(date '+%Y-%m-%d %H:%M:%S')"
+echo "" # Add a blank line for separation
 exit 0
