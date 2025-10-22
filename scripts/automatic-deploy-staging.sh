@@ -3,7 +3,6 @@
 # Configuration
 REPO_DIR="/apps/lex-llm-staging/"
 DEPLOY_SCRIPT="./scripts/deploy-staging.sh"
-GIT_BRANCH="main"
 
 # --- Script Logic ---
 
@@ -15,20 +14,20 @@ cd "$REPO_DIR" || { echo "ERROR: Could not change directory to $REPO_DIR"; exit 
 echo "Fetching remote changes..."
 git fetch origin
 
-# Get the SHA of the local branch head and the remote branch head
-LOCAL_SHA=$(git rev-parse HEAD)
-REMOTE_SHA=$(git rev-parse origin/$GIT_BRANCH)
+# Get the SHA of the local main branch and the remote main branch head
+LOCAL_SHA=$(git rev-parse main)
+REMOTE_SHA=$(git rev-parse origin/main)
 
-echo "Local SHA: $LOCAL_SHA"
-echo "Remote SHA: $REMOTE_SHA"
+echo "Local main SHA: $LOCAL_SHA"
+echo "Remote main SHA: $REMOTE_SHA"
 
 # Compare SHAs
 if [ "$LOCAL_SHA" != "$REMOTE_SHA" ]; then
     echo "--- NEW CHANGES DETECTED! Starting deployment... ---"
     
     # 1. Pull the changes
-    echo "Pulling changes from $GIT_BRANCH..."
-    git pull origin $GIT_BRANCH
+    echo "Pulling changes from main..."
+    git pull origin main
     
     # Check if the pull was successful before installing
     if [ $? -ne 0 ]; then
@@ -57,7 +56,7 @@ if [ "$LOCAL_SHA" != "$REMOTE_SHA" ]; then
         echo "--- Deployment FAILED! Check $DEPLOY_SCRIPT for errors. ---"
     fi
 else
-    echo "No new changes on $GIT_BRANCH. Staging environment is up to date."
+    echo "No new changes on main. Staging environment is up to date."
 fi
 
 exit 0
