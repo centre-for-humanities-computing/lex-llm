@@ -9,6 +9,7 @@ DEPLOY_SCRIPT="./scripts/deploy-staging.sh"
 echo "============================================================"
 echo "STARTING DEPLOYMENT CHECK at $(date '+%Y-%m-%d %H:%M:%S')"
 echo "============================================================"
+
 # Go to the repository directory
 cd "$REPO_DIR" || { echo "ERROR: Could not change directory to $REPO_DIR"; exit 1; }
 
@@ -28,13 +29,13 @@ echo "Remote main SHA: $REMOTE_SHA"
 if [ "$LOCAL_SHA" != "$REMOTE_SHA" ]; then
     echo "--- NEW CHANGES DETECTED! Starting deployment... ---"
     
-    # 1. Pull the changes
-    echo "Pulling changes from main..."
-    git pull origin main
+    # 1. Get the latest changes from main
+    echo "Resetting to main..."
+    git reset --hard origin/main
     
-    # Check if the pull was successful before installing
+    # Check if the reset was successful before installing
     if [ $? -ne 0 ]; then
-        echo "ERROR: Git pull failed. Aborting deployment."
+        echo "ERROR: Git reset failed. Aborting deployment."
         exit 1
     fi
 
