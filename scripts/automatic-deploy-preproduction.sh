@@ -1,8 +1,8 @@
 #!/bin/bash
 
 # Configuration
-REPO_DIR="/apps/lex-llm-staging/"
-DEPLOY_SCRIPT="./scripts/deploy-staging.sh"
+REPO_DIR="/apps/lex-llm-preproduction/"
+DEPLOY_SCRIPT="./scripts/deploy-preproduction.sh"
 
 # --- Script Logic ---
 # Go to the repository directory
@@ -11,19 +11,22 @@ cd "$REPO_DIR" || { echo "[$(date '+%Y-%m-%d %H:%M:%S')] ERROR: Could not change
 # Fetch remote changes without merging
 git fetch origin >/dev/null 2>&1
 
+# Get latest tag name
+LATEST_TAG=$(git describe --tags "$(git rev-parse origin/HEAD)")
 # Get the SHA of the local main branch and the remote main branch head
 LOCAL_SHA=$(git rev-parse main)
-REMOTE_SHA=$(git rev-parse origin/main)
+REMOTE_SHA=$(git rev-parse "$LATEST_TAG")
 
 # Compare SHAs
 if [ "$LOCAL_SHA" != "$REMOTE_SHA" ]; then
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] STARTING DEPLOYMENT"
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] Latest version: $LATEST_TAG"
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] Local SHA: $LOCAL_SHA"
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] Remote SHA: $REMOTE_SHA"
     
     # 1. Get the latest changes from main
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] Resetting to main..."
-    git reset --hard origin/main
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] Resetting to tag $LATEST_TAG..."
+    git reset --hard "$LATEST_TAG"
     
     # Check if the reset was successful before installing
     if [ $? -ne 0 ]; then
@@ -42,7 +45,7 @@ if [ "$LOCAL_SHA" != "$REMOTE_SHA" ]; then
     fi
 
     # 3. Run the deployment script
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] Deploying to staging..."
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] Deploying to preproduction..."
     $DEPLOY_SCRIPT
     
     # Check the deploy script's exit status
@@ -53,6 +56,6 @@ if [ "$LOCAL_SHA" != "$REMOTE_SHA" ]; then
     fi
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] Deployment FINISHED"
 else
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] Staging up to date"
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] Preproduction up to date"
 fi
 exit 0
