@@ -1,15 +1,34 @@
 #!/bin/bash
 
+# Set PATH for cron environment
+export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+
 # Configuration
 REPO_DIR="/apps/lex-llm-staging/"
 DEPLOY_SCRIPT="./scripts/deploy-staging.sh"
+LOCK_FILE="/tmp/lex-llm-staging-deploy.lock"
 
 # --- Script Logic ---
+# Check for lock file to prevent concurrent runs
+if [ -f "$LOCK_FILE" ]; then
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] Deployment already in progress (lock file exists). Exiting."
+    exit 0
+fi
+
+# Create lock file
+touch "$LOCK_FILE"
+
+# Ensure lock file is removed on exit
+trap "rm -f $LOCK_FILE" EXIT
+
 # Go to the repository directory
 cd "$REPO_DIR" || { echo "[$(date '+%Y-%m-%d %H:%M:%S')] ERROR: Could not change directory to $REPO_DIR"; exit 1; }
 
 # Fetch remote changes without merging
-git fetch origin >/dev/null 2>&1
+if ! git fetch origin >/dev/null 2>&1; then
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] ERROR: Git fetch failed. Check network/authentication."
+    exit 1
+fi
 
 # Get the SHA of the local main branch and the remote main branch head
 LOCAL_SHA=$(git rev-parse main)
