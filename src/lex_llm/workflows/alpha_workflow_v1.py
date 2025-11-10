@@ -119,7 +119,7 @@ async def extract_used_sources_via_llm(
     Uses an LLM to analyze the generated response and return only the Document objects
     that were actually used in generating the answer.
     """
-    if not response.strip() or "Jeg beklager, men jeg er ikke i stand" in response:
+    if not response.strip():
         return []  # No sources used if deferral message was returned
 
     source_descriptions = "\n".join(
