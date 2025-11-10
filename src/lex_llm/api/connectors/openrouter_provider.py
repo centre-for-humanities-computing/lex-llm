@@ -1,6 +1,5 @@
 from typing import AsyncGenerator, List, Optional
 import litellm
-import os
 from ..event_models import ConversationMessage
 from .openai_provider import LLMProvider
 
@@ -32,8 +31,7 @@ class OpenRouterProvider(LLMProvider):
         # Prepare extra headers for provider routing
         extra_body = {}
         if self.providers:
-            extra_body["provider"] = {"order": self.providers,
-                                      "allow_fallbacks": False}
+            extra_body["provider"] = {"order": self.providers, "allow_fallbacks": False}
 
         stream = await litellm.acompletion(
             model=f"openrouter/{self.model}",

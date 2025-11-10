@@ -18,7 +18,7 @@ def get_workflow(request: WorkflowRunRequest) -> Orchestrator:
             create_response_generation_step(
                 llm_provider=OpenRouterProvider(
                     model="google/gemma-3-27b-it",
-                    providers=["nebius/fp8"], # Only use the nebius/fp8 provider
+                    providers=["nebius/fp8"],  # Only use the nebius/fp8 provider
                 ),
                 system_prompt=ALPHA_V1_SYSTEM_PROMPT,
                 deferral_message=ALPHA_V1_DEFERRAL_MESSAGE,
