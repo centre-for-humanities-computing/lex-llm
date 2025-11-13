@@ -5,7 +5,7 @@ from ..api.event_emitter import EventEmitter
 from ..api.event_models import Source
 from ..api.connectors.lex_db_connector import LexArticle
 from ..api.connectors.openai_provider import LLMProvider
-from .source_attribution import extract_used_sources_via_llm
+from .extract_used_sources_via_llm import extract_used_sources_via_llm
 
 
 def create_response_generation_step(
@@ -25,7 +25,7 @@ def create_response_generation_step(
         An async generator function compatible with the Orchestrator
     """
 
-    async def generate_response_with_attribution(
+    async def generate_response_with_sources(
         context: Dict[str, Any], emitter: EventEmitter
     ) -> AsyncGenerator[str, None]:
         """
@@ -86,4 +86,4 @@ def create_response_generation_step(
             [Source(id=src.id, title=src.title, url=src.url) for src in used_sources]
         )
 
-    return generate_response_with_attribution
+    return generate_response_with_sources
