@@ -8,14 +8,14 @@ default: help
 install:
 	@echo "--- 🚀 Installing project ---"
 	make generate-api
-	uv venv
+	uv venv --clear
 	uv pip install -e build/lex_db_api  # Installs lex_db_api as a package
 	uv sync
 
 install-dev:
 	@echo "--- 🚀 Installing development dependencies ---"
 	make generate-api
-	uv venv
+	uv venv --clear
 	uv pip install -e build/lex_db_api  # Installs lex_db_api as a package
 	uv sync --dev
 
