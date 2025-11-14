@@ -6,7 +6,9 @@ import os
 import uvicorn
 from fastapi import FastAPI
 from lex_llm.api.routes import router
+from dotenv import load_dotenv
 
+load_dotenv()
 
 app = FastAPI(
     title="Lex LLM Orchestration API",
