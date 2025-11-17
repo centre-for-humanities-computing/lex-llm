@@ -31,7 +31,7 @@ if ! git fetch origin >/dev/null 2>&1; then
 fi
 
 # Get latest tag name
-LATEST_TAG=$(git describe --tags "$(git rev-parse origin/HEAD)" 2>/dev/null)
+LATEST_TAG=$(git describe --tags $(git rev-list --tags --max-count=1))
 if [ -z "$LATEST_TAG" ]; then
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] ERROR: No tags found in repository. Cannot deploy to preproduction."
     exit 1
