@@ -38,7 +38,9 @@ class OpenRouterProvider(LLMProvider):
 
             if msg_dict["role"] == merged[-1]["role"]:
                 # Merge content with the previous message
-                merged[-1]["content"] = f"{merged[-1]['content']}\n\n{msg_dict['content']}"
+                merged[-1]["content"] = (
+                    f"{merged[-1]['content']}\n\n{msg_dict['content']}"
+                )
             else:
                 merged.append(msg_dict)
 

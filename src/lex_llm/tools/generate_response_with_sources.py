@@ -55,7 +55,9 @@ def create_response_generation_step(
 """
 
         # Always include sources in the user message with clear delineation
-        user_message_with_sources = f"{sources}\n---\n\n**Brugerens spørgsmål:**\n{user_input}"
+        user_message_with_sources = (
+            f"{sources}\n---\n\n**Brugerens spørgsmål:**\n{user_input}"
+        )
         context["user_message_with_sources"] = user_message_with_sources
 
         # Prepare messages

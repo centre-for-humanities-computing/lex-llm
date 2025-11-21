@@ -58,8 +58,10 @@ class Orchestrator:
         # After all steps, construct the final history and end the stream
         final_assistant_message = self.context.get("final_response", "")
         system_prompt = self.context.get("system_prompt", "")
-        user_message_with_sources = self.context.get("user_message_with_sources", self.request.user_input)
-        
+        user_message_with_sources = self.context.get(
+            "user_message_with_sources", self.request.user_input
+        )
+
         # Build the new history
         new_history = []
         if system_prompt and not self.request.conversation_history:
@@ -67,7 +69,7 @@ class Orchestrator:
             new_history.append(
                 ConversationMessage(role="system", content=system_prompt)
             )
-        
+
         new_history += [
             ConversationMessage(role="user", content=user_message_with_sources),
             ConversationMessage(role="assistant", content=final_assistant_message),
