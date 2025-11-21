@@ -74,7 +74,7 @@ class Orchestrator:
             ConversationMessage(role="user", content=user_message),
             ConversationMessage(role="assistant", content=final_assistant_message),
         ]
-        
+
         # For follow-up messages, update the system prompt in history
         if self.request.conversation_history and system_prompt_with_sources:
             # Replace old system message with updated one containing all used sources

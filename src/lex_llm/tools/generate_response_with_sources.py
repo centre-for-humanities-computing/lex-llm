@@ -1,7 +1,7 @@
 """Response generation tools with source attribution."""
 
 import re
-from typing import AsyncGenerator, Dict, Any, List, Callable, Union
+from typing import AsyncGenerator, Dict, Any, List, Callable
 from ..api.event_emitter import EventEmitter
 from ..api.event_models import Source, ConversationMessage
 from ..api.connectors.lex_db_connector import LexArticle
@@ -18,46 +18,45 @@ def _extract_used_sources_from_system_prompt(
     """
     if not conversation_history:
         return []
-    
+
     # Find the system message
     system_message = None
     for msg in conversation_history:
-        # Convert to dict if it's a Pydantic model
-        msg_dict: Dict[str, Any] = msg.model_dump() if hasattr(msg, 'model_dump') else msg  # type: ignore
-        
-        if msg_dict["role"] == "system":
-            system_message = msg_dict["content"]
+        if dict(msg)["role"] == "system":
+            system_message = dict(msg)["content"]
             break
-    
+
     if not system_message:
         return []
-    
+
     # Extract the "Artikler" section using regex
     artikler_match = re.search(
-        r'## Artikler\n(.+?)(?=\n## |$)',
-        system_message,
-        re.DOTALL
+        r"## Artikler\n(.+?)(?=\n## |$)", system_message, re.DOTALL
     )
-    
+
     if not artikler_match:
         return []
-    
+
     artikler_section = artikler_match.group(1)
-    
+
     # Extract individual articles
     # Pattern: Titel: <title>\nIndhold: <text>\nURL: <url>\nID: <id>
-    article_pattern = r'Titel: (.+?)\nIndhold: (.+?)\nURL: (.+?)\nID: (.+?)(?=\n\nTitel: |$)'
+    article_pattern = (
+        r"Titel: (.+?)\nIndhold: (.+?)\nURL: (.+?)\nID: (.+?)(?=\n\nTitel: |$)"
+    )
     matches = re.finditer(article_pattern, artikler_section, re.DOTALL)
-    
+
     used_sources = []
     for match in matches:
-        used_sources.append({
-            "title": match.group(1).strip(),
-            "text": match.group(2).strip(),
-            "url": match.group(3).strip(),
-            "id": match.group(4).strip(),
-        })
-    
+        used_sources.append(
+            {
+                "title": match.group(1).strip(),
+                "text": match.group(2).strip(),
+                "url": match.group(3).strip(),
+                "id": match.group(4).strip(),
+            }
+        )
+
     return used_sources
 
 
@@ -101,28 +100,32 @@ def create_response_generation_step(
         previous_used_sources_data = _extract_used_sources_from_system_prompt(
             conversation_history
         )
-        
+
         # Build dynamic system prompt with sources
         dynamic_system_prompt = system_prompt
-        
+
         # Add "Artikler" section if there are previously used sources
         if previous_used_sources_data:
-            artikler_text = "\n\n".join([
-                f"Titel: {src['title']}\nIndhold: {src['text']}\nURL: {src['url']}\nID: {src['id']}"
-                for src in previous_used_sources_data
-            ])
+            artikler_text = "\n\n".join(
+                [
+                    f"Titel: {src['title']}\nIndhold: {src['text']}\nURL: {src['url']}\nID: {src['id']}"
+                    for src in previous_used_sources_data
+                ]
+            )
             dynamic_system_prompt += f"\n\n## Artikler\n{artikler_text}"
-        
+
         # Always add "Potentielle kilder" section with new retrieved docs
-        potentielle_text = "\n\n".join([
-            f"Titel: {doc.title}\nIndhold: {doc.text}\nURL: {doc.url}\nID: {doc.id}"
-            for doc in retrieved_docs
-        ])
+        potentielle_text = "\n\n".join(
+            [
+                f"Titel: {doc.title}\nIndhold: {doc.text}\nURL: {doc.url}\nID: {doc.id}"
+                for doc in retrieved_docs
+            ]
+        )
         dynamic_system_prompt += f"\n\n## Potentielle kilder\n{potentielle_text}"
 
         # Prepare messages with dynamic system prompt (as dicts for LLM provider)
         messages: List[Dict[str, str]] = []
-        
+
         if not conversation_history:
             # First query: include dynamic system prompt with Potentielle kilder
             messages = [
@@ -136,11 +139,10 @@ def create_response_generation_step(
             ]
             # Add conversation history (user/assistant pairs only)
             for msg in conversation_history:
-                # Convert to dict if it's a Pydantic model
-                msg_dict: Dict[str, Any] = msg.model_dump() if hasattr(msg, 'model_dump') else msg  # type: ignore
-                
-                if msg_dict["role"] in ["user", "assistant"]:
-                    messages.append({"role": msg_dict["role"], "content": msg_dict["content"]})
+                if dict(msg)["role"] in ["user", "assistant"]:
+                    messages.append(
+                        {"role": dict(msg)["role"], "content": dict(msg)["content"]}
+                    )
             # Add new user message
             messages.append({"role": "user", "content": user_input})
 
@@ -157,38 +159,45 @@ def create_response_generation_step(
             retrieved_docs=retrieved_docs,
             llm_provider=llm_provider,
         )
-        
+
         # Merge with previous used sources, avoiding duplicates by ID
         previous_ids = {src["id"] for src in previous_used_sources_data}
         merged_used_sources = previous_used_sources_data.copy()
-        
+
         for src in newly_used_sources:
             if str(src.id) not in previous_ids:
-                merged_used_sources.append({
-                    "id": str(src.id),
-                    "title": src.title,
-                    "text": src.text,
-                    "url": src.url,
-                })
+                merged_used_sources.append(
+                    {
+                        "id": str(src.id),
+                        "title": src.title,
+                        "text": src.text,
+                        "url": src.url,
+                    }
+                )
                 previous_ids.add(str(src.id))
-        
+
         # Store merged sources for building system prompt in next turn
         context["used_sources"] = merged_used_sources
-        
+
         # Build the system prompt with "Artikler" section for conversation history
         system_prompt_with_sources = system_prompt
         if merged_used_sources:
-            artikler_text = "\n\n".join([
-                f"Titel: {src['title']}\nIndhold: {src['text']}\nURL: {src['url']}\nID: {src['id']}"
-                for src in merged_used_sources
-            ])
+            artikler_text = "\n\n".join(
+                [
+                    f"Titel: {src['title']}\nIndhold: {src['text']}\nURL: {src['url']}\nID: {src['id']}"
+                    for src in merged_used_sources
+                ]
+            )
             system_prompt_with_sources += f"\n\n## Artikler\n{artikler_text}"
-        
+
         context["system_prompt"] = system_prompt_with_sources
-        
+
         # Emit only the newly used sources (not the ones already in Artikler)
         yield emitter.sources(
-            [Source(id=src.id, title=src.title, url=src.url) for src in newly_used_sources]
+            [
+                Source(id=src.id, title=src.title, url=src.url)
+                for src in newly_used_sources
+            ]
         )
 
     return generate_response_with_sources
