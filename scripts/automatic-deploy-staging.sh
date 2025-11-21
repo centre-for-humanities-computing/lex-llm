@@ -42,6 +42,7 @@ if [ "$LOCAL_SHA" != "$REMOTE_SHA" ]; then
     
     # 1. Get the latest changes from main
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] Resetting to main..."
+    git checkout main
     git reset --hard origin/main
     
     # Check if the reset was successful before installing
