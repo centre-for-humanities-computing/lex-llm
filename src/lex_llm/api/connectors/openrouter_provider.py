@@ -32,7 +32,11 @@ class OpenRouterProvider(LLMProvider):
             return messages
 
         # Convert first message to dict and create a copy
-        merged = [dict(messages[0]) if isinstance(messages[0], dict) else messages[0].model_dump()]
+        merged = [
+            dict(messages[0])
+            if isinstance(messages[0], dict)
+            else messages[0].model_dump()
+        ]
 
         for msg in messages[1:]:
             # Convert to dict if it's a Pydantic model
@@ -40,7 +44,9 @@ class OpenRouterProvider(LLMProvider):
 
             if msg_dict["role"] == merged[-1]["role"]:
                 # Merge content with the previous message
-                merged[-1]["content"] = f"{merged[-1]['content']}\n\n{msg_dict['content']}"
+                merged[-1]["content"] = (
+                    f"{merged[-1]['content']}\n\n{msg_dict['content']}"
+                )
             else:
                 merged.append(msg_dict)
 
