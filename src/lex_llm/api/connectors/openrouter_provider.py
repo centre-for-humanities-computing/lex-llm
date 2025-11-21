@@ -24,10 +24,41 @@ class OpenRouterProvider(LLMProvider):
         self.model = model
         self.providers = providers
 
+    def _merge_consecutive_messages(
+        self, messages: List[ConversationMessage]
+    ) -> List[ConversationMessage]:
+        """Merge consecutive messages with the same role."""
+        if not messages:
+            return messages
+
+        # Convert first message to dict and create a copy
+        merged = [
+            dict(messages[0])
+            if isinstance(messages[0], dict)
+            else messages[0].model_dump()
+        ]
+
+        for msg in messages[1:]:
+            # Convert to dict if it's a Pydantic model
+            msg_dict = dict(msg) if isinstance(msg, dict) else msg.model_dump()
+
+            if msg_dict["role"] == merged[-1]["role"]:
+                # Merge content with the previous message
+                merged[-1]["content"] = (
+                    f"{merged[-1]['content']}\n\n{msg_dict['content']}"
+                )
+            else:
+                merged.append(msg_dict)
+
+        return merged  # type: ignore
+
     async def generate_stream(
         self, messages: List[ConversationMessage]
     ) -> AsyncGenerator[str, None]:
         """Calls the OpenRouter API and streams the response."""
+        # Merge consecutive messages with the same role
+        merged_messages = self._merge_consecutive_messages(messages)
+
         # Prepare extra headers for provider routing
         extra_body = {}
         if self.providers:
@@ -35,7 +66,7 @@ class OpenRouterProvider(LLMProvider):
 
         stream = await litellm.acompletion(
             model=f"openrouter/{self.model}",
-            messages=messages,
+            messages=merged_messages,
             stream=True,
             extra_body=extra_body if extra_body else None,
         )
