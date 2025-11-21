@@ -8,6 +8,7 @@ from ..prompts import ALPHA_V1_SYSTEM_PROMPT, ALPHA_V1_DEFERRAL_MESSAGE
 # This function is the entry point called by the API route
 def get_workflow(request: WorkflowRunRequest) -> Orchestrator:
     """Configures and returns the RAG workflow orchestrator using Gemma via OpenRouter."""
+
     return Orchestrator(
         request=request,
         steps=[
