@@ -50,22 +50,27 @@ def create_response_generation_step(
         )
 
         sources = f"""
-    ## Artikler
+## Artikler (hentet fra Lex)
 {docs_text}
-    """
+"""
+
+        # Always include sources in the user message with clear delineation
+        user_message_with_sources = f"{sources}\n---\n\n**Brugerens spørgsmål:**\n{user_input}"
+        context["user_message_with_sources"] = user_message_with_sources
 
         # Prepare messages
         if not conversation_history:
+            # First query: include system prompt
             messages = [
-                {"role": "system", "content": system_prompt + sources},
-                {"role": "user", "content": user_input},
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_message_with_sources},
             ]
             context["system_prompt"] = system_prompt
         else:
+            # Follow-up questions: append to conversation history
             messages = conversation_history + [
-                {"role": "system", "content": sources},
-                {"role": "user", "content": user_input},
-            ]  # type: ignore
+                {"role": "user", "content": user_message_with_sources}
+            ]
 
         # Stream response from LLM
         full_response = ""
