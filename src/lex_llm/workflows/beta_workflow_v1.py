@@ -4,8 +4,6 @@ from ..api.connectors.openrouter_provider import OpenRouterProvider
 from ..tools import search_knowledge_base, generate_response_with_sources
 from ..prompts import ALPHA_V1_SYSTEM_PROMPT, ALPHA_V1_DEFERRAL_MESSAGE
 
-
-# This function is the entry point called by the API route
 def get_workflow(request: WorkflowRunRequest) -> Orchestrator:
     """Configures and returns the RAG workflow orchestrator using Gemma via OpenRouter."""
 
@@ -13,7 +11,7 @@ def get_workflow(request: WorkflowRunRequest) -> Orchestrator:
         request=request,
         steps=[
             search_knowledge_base(
-                index_name="openai_large_3_sections",
+                index_name="e5_small",
                 top_k=10,
             ),
             generate_response_with_sources(
@@ -31,9 +29,9 @@ def get_workflow(request: WorkflowRunRequest) -> Orchestrator:
 
 def get_metadata() -> dict:
     return {
-        "workflow_id": "alpha_workflow_v1_gemma",
-        "name": "Alpha Workflow v1 (Gemma)",
-        "description": "Version 1 of the workflow using Google Gemma 3 27B via OpenRouter. Performs a simple retrieval-augmented generation (RAG) using a knowledge base and outputs a source list.",
+        "workflow_id": "beta_workflow_v1",
+        "name": "Beta Workflow v1",
+        "description": "Version 1 of the beta workflow using Google Gemma 3 27B via OpenRouter and the e5 embedding model hosted locally. Performs a simple retrieval-augmented generation (RAG) using a knowledge base and outputs a source list.",
         "input_schema": {
             "type": "object",
             "properties": {

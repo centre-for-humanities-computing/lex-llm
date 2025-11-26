@@ -174,8 +174,88 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/benchmark/embeddings:
+    post:
+      tags:
+      - lex-db
+      summary: Benchmark embedding generation performance
+      description: Benchmark embedding generation with configurable parameters.
+      operationId: benchmark_embeddings
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BenchmarkEmbeddingsRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BenchmarkEmbeddingsResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
 components:
   schemas:
+    BenchmarkEmbeddingsRequest:
+      properties:
+        model_choice:
+          $ref: '#/components/schemas/EmbeddingModel'
+          default: intfloat/multilingual-e5-large
+        num_texts:
+          type: integer
+          title: Num Texts
+          default: 50
+        text_length:
+          type: integer
+          title: Text Length
+          default: 200
+      type: object
+      title: BenchmarkEmbeddingsRequest
+    BenchmarkEmbeddingsResponse:
+      properties:
+        num_texts:
+          type: integer
+          title: Num Texts
+        avg_text_length:
+          type: integer
+          title: Avg Text Length
+        total_time_seconds:
+          type: number
+          title: Total Time Seconds
+        texts_per_second:
+          type: number
+          title: Texts Per Second
+        ms_per_text:
+          type: number
+          title: Ms Per Text
+        embedding_dimension:
+          type: integer
+          title: Embedding Dimension
+      type: object
+      required:
+      - num_texts
+      - avg_text_length
+      - total_time_seconds
+      - texts_per_second
+      - ms_per_text
+      - embedding_dimension
+      title: BenchmarkEmbeddingsResponse
+    EmbeddingModel:
+      type: string
+      enum:
+      - intfloat/multilingual-e5-large
+      - text-embedding-ada-002
+      - text-embedding-3-small
+      - text-embedding-3-large
+      - mock_model
+      title: EmbeddingModel
+      description: Supported embedding models.
     HTTPValidationError:
       properties:
         detail:
