@@ -5,7 +5,7 @@ from ..api.event_emitter import EventEmitter
 from ..api.connectors.lex_db_connector import LexDBConnector
 
 
-def create_kb_search_step(
+def search_knowledge_base(
     index_name: str = "openai_large_3_sections",
     top_k: int = 10,
 ) -> Callable[[Dict[str, Any], EventEmitter], AsyncGenerator[None, None]]:
@@ -20,7 +20,7 @@ def create_kb_search_step(
         An async generator function compatible with the Orchestrator
     """
 
-    async def search_knowledge_base(
+    async def run(
         context: Dict[str, Any], emitter: EventEmitter
     ) -> AsyncGenerator[None, None]:
         """Queries the KB and prepares sources for emission."""
@@ -33,4 +33,4 @@ def create_kb_search_step(
         context["retrieved_docs"] = documents
         yield
 
-    return search_knowledge_base
+    return run

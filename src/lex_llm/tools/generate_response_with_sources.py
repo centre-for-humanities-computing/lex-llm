@@ -60,7 +60,7 @@ def _extract_used_sources_from_system_prompt(
     return used_sources
 
 
-def create_response_generation_step(
+def generate_response_with_sources(
     llm_provider: LLMProvider,
     system_prompt: str,
     deferral_message: str,
@@ -77,7 +77,7 @@ def create_response_generation_step(
         An async generator function compatible with the Orchestrator
     """
 
-    async def generate_response_with_sources(
+    async def run(
         context: Dict[str, Any], emitter: EventEmitter
     ) -> AsyncGenerator[str, None]:
         """
@@ -112,7 +112,7 @@ def create_response_generation_step(
                     for src in previous_used_sources_data
                 ]
             )
-            dynamic_system_prompt += f"\n\n## Artikler\n{artikler_text}"
+            dynamic_system_prompt += f"\n\n# Artikler\n{artikler_text}"
 
         # Always add "Potentielle kilder" section with new retrieved docs
         potentielle_text = "\n\n".join(
@@ -121,7 +121,7 @@ def create_response_generation_step(
                 for doc in retrieved_docs
             ]
         )
-        dynamic_system_prompt += f"\n\n## Potentielle kilder\n{potentielle_text}"
+        dynamic_system_prompt += f"\n\n# Potentielle kilder\n{potentielle_text}"
 
         # Prepare messages with dynamic system prompt (as dicts for LLM provider)
         messages: List[Dict[str, str]] = []
@@ -200,4 +200,4 @@ def create_response_generation_step(
             ]
         )
 
-    return generate_response_with_sources
+    return run

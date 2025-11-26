@@ -1,6 +1,6 @@
 """Tools and utilities for building workflow steps."""
 
-from .search_knowledge_base import create_kb_search_step
-from .generate_response_with_sources import create_response_generation_step
+from .search_knowledge_base import search_knowledge_base
+from .generate_response_with_sources import generate_response_with_sources
 
-__all__ = ["create_kb_search_step", "create_response_generation_step"]
+__all__ = ["search_knowledge_base", "generate_response_with_sources"]
