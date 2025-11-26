@@ -4,6 +4,7 @@ from ..api.connectors.openrouter_provider import OpenRouterProvider
 from ..tools import search_knowledge_base, generate_response_with_sources
 from ..prompts import ALPHA_V1_SYSTEM_PROMPT, ALPHA_V1_DEFERRAL_MESSAGE
 
+
 def get_workflow(request: WorkflowRunRequest) -> Orchestrator:
     """Configures and returns the RAG workflow orchestrator using Gemma via OpenRouter."""
 
