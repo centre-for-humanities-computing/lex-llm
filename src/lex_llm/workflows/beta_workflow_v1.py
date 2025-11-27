@@ -12,7 +12,7 @@ def get_workflow(request: WorkflowRunRequest) -> Orchestrator:
         request=request,
         steps=[
             search_knowledge_base(
-                index_name="e5_small_section_sentence",
+                index_name="e5_small",
                 top_k=10,
             ),
             generate_response_with_sources(
