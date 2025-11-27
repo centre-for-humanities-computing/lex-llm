@@ -77,7 +77,7 @@ def generate_response_with_sources(
         An async generator function compatible with the Orchestrator
     """
 
-    async def run(
+    async def generate_response_with_sources(
         context: Dict[str, Any], emitter: EventEmitter
     ) -> AsyncGenerator[str, None]:
         """
@@ -200,4 +200,4 @@ def generate_response_with_sources(
             ]
         )
 
-    return run
+    return generate_response_with_sources

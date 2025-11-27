@@ -20,7 +20,7 @@ def search_knowledge_base(
         An async generator function compatible with the Orchestrator
     """
 
-    async def run(
+    async def search_knowledge_base(
         context: Dict[str, Any], emitter: EventEmitter
     ) -> AsyncGenerator[None, None]:
         """Queries the KB and prepares sources for emission."""
@@ -33,4 +33,4 @@ def search_knowledge_base(
         context["retrieved_docs"] = documents
         yield
 
-    return run
+    return search_knowledge_base

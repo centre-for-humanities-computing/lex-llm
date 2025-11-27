@@ -12,7 +12,7 @@ def get_workflow(request: WorkflowRunRequest) -> Orchestrator:
         request=request,
         steps=[
             search_knowledge_base(
-                index_name="e5_small_section_sentence",
+                index_name="e5_large_section_sentence",
                 top_k=10,
             ),
             generate_response_with_sources(
@@ -30,8 +30,8 @@ def get_workflow(request: WorkflowRunRequest) -> Orchestrator:
 
 def get_metadata() -> dict:
     return {
-        "workflow_id": "beta_workflow_v1",
-        "name": "Beta Workflow v1",
+        "workflow_id": "beta_workflow_v1_large",
+        "name": "Beta Workflow v1 with large embeddings",
         "description": "Version 1 of the beta workflow using Google Gemma 3 27B via OpenRouter and the e5 embedding model hosted locally. Performs a simple retrieval-augmented generation (RAG) using a knowledge base and outputs a source list.",
         "input_schema": {
             "type": "object",
