@@ -16,7 +16,7 @@ def search_knowledge_base(
     Args:
         index_name: The name of the vector index to search
         top_k: Number of top results to retrieve
-        search_method: Search method to use - one of: "vector_search", "hybrid_search", "hyde_search", "hybrid_hyde_search"
+        search_method: Search method to use - one of: "vector_search", "hybrid_search"
     Returns:
         An async generator function compatible with the Orchestrator
     """
@@ -30,14 +30,6 @@ def search_knowledge_base(
 
         if search_method == "hybrid_search":
             documents = await lex_db_connector.hybrid_search(
-                query=user_input, top_k=top_k, index_name=index_name
-            )
-        elif search_method == "hyde_search":
-            documents = await lex_db_connector.hyde_search(
-                query=user_input, top_k=top_k, index_name=index_name
-            )
-        elif search_method == "hybrid_hyde_search":
-            documents = await lex_db_connector.hybrid_hyde_search(
                 query=user_input, top_k=top_k, index_name=index_name
             )
         else:  # Default to vector_search
