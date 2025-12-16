@@ -14,7 +14,7 @@ def get_workflow(request: WorkflowRunRequest) -> Orchestrator:
             search_knowledge_base(
                 index_name="article_embeddings_e5",
                 top_k=10,
-                search_method="hybrid_hyde_search",
+                search_method = "hybrid_search"
             ),
             generate_response_with_sources(
                 llm_provider=OpenRouterProvider(
