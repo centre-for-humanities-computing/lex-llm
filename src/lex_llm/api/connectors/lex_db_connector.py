@@ -144,4 +144,3 @@ class LexDBConnector:
         except httpx.RequestError as e:
             print(f"Error connecting to LexDB: {e}")
             return []
-
