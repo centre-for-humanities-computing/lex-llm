@@ -15,7 +15,7 @@ def get_workflow(request: WorkflowRunRequest) -> Orchestrator:
                 index_name="article_embeddings_e5",
                 top_k=10,
                 search_method="hybrid_search",
-                methods=["FULLTEXT", "HYDE"] 
+                methods=["HYDE", "FULLTEXT"],
             ),
             generate_response_with_sources(
                 llm_provider=OpenRouterProvider(
