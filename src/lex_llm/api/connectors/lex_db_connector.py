@@ -108,8 +108,8 @@ class LexDBConnector:
                             text=result.xhtml_md,
                             url=result.url,
                         )
-                    for result in search_results.entries
-                ]
+                        for result in search_results.entries
+                    ]
 
             return []
         except httpx.RequestError as e:
