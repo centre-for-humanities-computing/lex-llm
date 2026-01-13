@@ -95,14 +95,20 @@ class LexDBConnector:
                         # Append additional chunks to the same article
                         articles_dict[result.article_id] += f"\n\n{result.chunk_text}"
 
-                return [
-                    LexArticle(
-                        id=article_id,
-                        title=f"Article {article_id}",  # We don't have the title in RetrievalResult
-                        text=text,
-                        url=f"https://lex.dk/article/{article_id}",
-                    )
-                    for article_id, text in articles_dict.items()
+                # Fetch actual article details from the database
+                search_results = lexdb_api.get_articles(
+                    ids=str(list(articles_dict.keys()))
+                )
+
+                if search_results.entries:
+                    return [
+                        LexArticle(
+                            id=result.id,
+                            title=result.title,
+                            text=result.xhtml_md,
+                            url=result.url,
+                        )
+                    for result in search_results.entries
                 ]
 
             return []
