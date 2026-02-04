@@ -34,26 +34,54 @@ class LexDBConnector:
             vec_req = VectorSearchRequest(query_text=query, top_k=top_k)
             vector_search_result = lexdb_api.vector_search(index_name, vec_req)
             if vector_search_result.results:
-                search_results = lexdb_api.get_articles(
-                    ids=str(
-                        list(
-                            {
-                                int(result.source_article_id)
-                                for result in vector_search_result.results
-                            }
+                # Check if this is the E5 chunk-based index
+                if index_name == "article_embeddings_e5":
+                    # Group chunks by article_id
+                    articles_dict = {}
+                    for result in vector_search_result.results:
+                        article_id = int(result.source_article_id)
+                        if article_id not in articles_dict:
+                            articles_dict[article_id] = result.chunk_text
+                        else:
+                            # Append additional chunks to the same article
+                            articles_dict[article_id] += f"\n\n{result.chunk_text}"
+
+                    # Fetch article metadata (title, url)
+                    search_results = lexdb_api.get_articles(
+                        ids=str(list(articles_dict.keys()))
+                    )
+                    if search_results.entries:
+                        return [
+                            LexArticle(
+                                id=result.id,
+                                title=result.title,
+                                text=articles_dict[result.id],  # Use chunks
+                                url=result.url,
+                            )
+                            for result in search_results.entries
+                        ]
+                else:
+                    # For other indices (e.g., OpenAI), use full articles
+                    search_results = lexdb_api.get_articles(
+                        ids=str(
+                            list(
+                                {
+                                    int(result.source_article_id)
+                                    for result in vector_search_result.results
+                                }
+                            )
                         )
                     )
-                )
-                if search_results.entries:
-                    return [
-                        LexArticle(
-                            id=result.id,
-                            title=result.title,
-                            text=result.xhtml_md,
-                            url=result.url,
-                        )
-                        for result in search_results.entries
-                    ]
+                    if search_results.entries:
+                        return [
+                            LexArticle(
+                                id=result.id,
+                                title=result.title,
+                                text=result.xhtml_md,  # Use full article
+                                url=result.url,
+                            )
+                            for result in search_results.entries
+                        ]
 
             return []
         except httpx.RequestError as e:
@@ -105,7 +133,9 @@ class LexDBConnector:
                         LexArticle(
                             id=result.id,
                             title=result.title,
-                            text=result.xhtml_md,
+                            text=articles_dict[
+                                result.id
+                            ],  # Use chunks (already collected above)
                             url=result.url,
                         )
                         for result in search_results.entries
@@ -125,22 +155,26 @@ class LexDBConnector:
             hyde_req = VectorSearchRequest(query_text=query, top_k=top_k)
             hyde_search_result = lexdb_api.hyde_search(index_name, hyde_req)
             if hyde_search_result.results:
+                # Group chunks by article_id (HyDE only used with E5 embeddings)
+                articles_dict = {}
+                for result in hyde_search_result.results:
+                    article_id = int(result.source_article_id)
+                    if article_id not in articles_dict:
+                        articles_dict[article_id] = result.chunk_text
+                    else:
+                        # Append additional chunks to the same article
+                        articles_dict[article_id] += f"\n\n{result.chunk_text}"
+
+                # Fetch article metadata (title, url)
                 search_results = lexdb_api.get_articles(
-                    ids=str(
-                        list(
-                            {
-                                int(result.source_article_id)
-                                for result in hyde_search_result.results
-                            }
-                        )
-                    )
+                    ids=str(list(articles_dict.keys()))
                 )
                 if search_results.entries:
                     return [
                         LexArticle(
                             id=result.id,
                             title=result.title,
-                            text=result.xhtml_md,
+                            text=articles_dict[result.id],  # Use chunks
                             url=result.url,
                         )
                         for result in search_results.entries
