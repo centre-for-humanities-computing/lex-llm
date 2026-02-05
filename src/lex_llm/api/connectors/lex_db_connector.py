@@ -117,11 +117,14 @@ class LexDBConnector:
                 # Group chunks by article_id to get unique articles
                 articles_dict = {}
                 for result in hybrid_search_result.results:
-                    if result.article_id not in articles_dict:
-                        articles_dict[result.article_id] = result.chunk_text
+                    # Ensure article_id is an int to match get_articles result
+                    article_id = int(result.article_id)
+
+                    if article_id not in articles_dict:
+                        articles_dict[article_id] = result.chunk_text
                     else:
                         # Append additional chunks to the same article
-                        articles_dict[result.article_id] += f"\n\n{result.chunk_text}"
+                        articles_dict[article_id] += f"\n\n{result.chunk_text}"
 
                 # Fetch actual article details from the database
                 search_results = lexdb_api.get_articles(
