@@ -1,3 +1,5 @@
+from lex_db_api.models.search_method import SearchMethod
+
 from ..api.orchestrator import Orchestrator
 from ..api.event_models import WorkflowRunRequest
 from ..api.connectors.openrouter_provider import OpenRouterProvider
@@ -15,7 +17,7 @@ def get_workflow(request: WorkflowRunRequest) -> Orchestrator:
                 index_name="article_embeddings_e5",
                 top_k=10,
                 search_method="hybrid_search",
-                methods=["SEMANTIC", "FULLTEXT"],
+                methods=[SearchMethod.SEMANTIC, SearchMethod.FULLTEXT],
             ),
             generate_response_with_sources(
                 llm_provider=OpenRouterProvider(

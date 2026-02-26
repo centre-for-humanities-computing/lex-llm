@@ -1,6 +1,8 @@
 """Knowledge base search tools for workflows."""
 
 from typing import AsyncGenerator, Dict, Any, Callable
+
+from lex_db_api.models.search_method import SearchMethod
 from ..api.event_emitter import EventEmitter
 from ..api.connectors.lex_db_connector import LexDBConnector
 
@@ -9,7 +11,7 @@ def search_knowledge_base(
     index_name: str = "openai_large_3_sections",
     top_k: int = 10,
     search_method: str = "vector_search",
-    methods: list[str] | None = None,
+    methods: list[SearchMethod] | None = None,
 ) -> Callable[[Dict[str, Any], EventEmitter], AsyncGenerator[None, None]]:
     """
     Creates a knowledge base search step with the specified parameters.

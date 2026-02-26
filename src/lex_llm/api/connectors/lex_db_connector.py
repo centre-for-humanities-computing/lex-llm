@@ -6,6 +6,7 @@ from pydantic import BaseModel
 from lex_db_api.api.lex_db_api import LexDbApi
 from lex_db_api.api_client import ApiClient
 from lex_db_api.configuration import Configuration
+from lex_db_api.models.search_method import SearchMethod
 from lex_db_api.models.vector_search_request import VectorSearchRequest
 from lex_db_api.models.hybrid_search_request import HybridSearchRequest
 
@@ -97,7 +98,7 @@ class LexDBConnector:
         top_k_fts: int = 50,
         rrf_k: int = 60,
         index_name: str = "article_embeddings_e5",
-        methods: list[str] | None = None,
+        methods: list[SearchMethod] | None = None,
     ) -> List[LexArticle]:
         """Performs hybrid search using RRF fusion via the lex-db API."""
 

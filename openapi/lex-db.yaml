@@ -1,1 +1,540 @@
-{"openapi":"3.1.0","info":{"title":"Lex DB API","description":"A wrapper around a SQLite database for encyclopedia articles with vector and full-text search","version":"0.1.0"},"paths":{"/":{"get":{"tags":["Health"],"summary":"Health Check","description":"Health check endpoint.\n\nReturns:\n    dict: Health check information.","operationId":"health_check__get","responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"additionalProperties":true,"type":"object","title":"Response Health Check  Get"}}}}}}},"/api/tables":{"get":{"tags":["lex-db"],"summary":"Get a list of tables in the database","description":"Get a list of tables in the database.","operationId":"get_tables","responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"additionalProperties":{"items":{"type":"string"},"type":"array"},"type":"object","title":"Response Get Tables"}}}}}}},"/api/vector-search/indexes/{index_name}/query":{"post":{"tags":["lex-db"],"summary":"Search a vector index for similar content to the query text","description":"Search a vector index for similar content to the query text.","operationId":"vector_search","parameters":[{"name":"index_name","in":"path","required":true,"schema":{"type":"string","title":"Index Name"}}],"requestBody":{"required":true,"content":{"application/json":{"schema":{"$ref":"#/components/schemas/VectorSearchRequest"}}}},"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"$ref":"#/components/schemas/VectorSearchResults"}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}}},"/api/hybrid-search/indexes/{index_name}/query":{"post":{"tags":["lex-db"],"summary":"Hybrid search combining semantic and keyword search with RRF fusion","description":"Perform hybrid search using RRF fusion of semantic and keyword search.","operationId":"hybrid_search","parameters":[{"name":"index_name","in":"path","required":true,"schema":{"type":"string","title":"Index Name"}}],"requestBody":{"required":true,"content":{"application/json":{"schema":{"$ref":"#/components/schemas/HybridSearchRequest"}}}},"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HybridSearchResults"}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}}},"/api/hyde-search/indexes/{index_name}/query":{"post":{"tags":["lex-db"],"summary":"HyDE search using LLM-generated hypothetical document","description":"Perform HyDE search: generate hypothetical document, embed it, and search.","operationId":"hyde_search","parameters":[{"name":"index_name","in":"path","required":true,"schema":{"type":"string","title":"Index Name"}}],"requestBody":{"required":true,"content":{"application/json":{"schema":{"$ref":"#/components/schemas/VectorSearchRequest"}}}},"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"$ref":"#/components/schemas/VectorSearchResults"}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}}},"/api/articles":{"get":{"tags":["lex-db"],"summary":"An endpoint for filtering articles based on metadata such as id, text search, etc. Query parameters are used for filtering (e.g. GET /articles?query=Rundetårn, or GET /articles?ids=1&ids=2&ids=5)","description":"Filter articles based on metadata such as id, text search, etc.","operationId":"get_articles","parameters":[{"name":"query","in":"query","required":false,"schema":{"anyOf":[{"type":"string"},{"type":"null"}],"description":"Text search in articles","title":"Query"},"description":"Text search in articles"},{"name":"ids","in":"query","required":false,"schema":{"anyOf":[{"type":"string"},{"type":"null"}],"description":"List of article IDs (comma-separated, JSON list, or repeated)","title":"Ids"},"description":"List of article IDs (comma-separated, JSON list, or repeated)"},{"name":"limit","in":"query","required":false,"schema":{"type":"integer","maximum":100,"minimum":1,"description":"Maximum number of results","default":50,"title":"Limit"},"description":"Maximum number of results"}],"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"$ref":"#/components/schemas/SearchResults"}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}}},"/api/vector-search/indexes":{"get":{"tags":["lex-db"],"summary":"List all vector indexes and their metadata","description":"Return a list of all vector indexes and their metadata.","operationId":"list_vector_indexes","responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"items":{"additionalProperties":true,"type":"object"},"type":"array","title":"Response List Vector Indexes"}}}}}}},"/api/vector-search/indexes/{index_name}":{"get":{"tags":["lex-db"],"summary":"Get metadata for a specific vector index","description":"Return metadata for a specific vector index.","operationId":"get_vector_index","parameters":[{"name":"index_name","in":"path","required":true,"schema":{"type":"string","title":"Index Name"}}],"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"type":"object","additionalProperties":true,"title":"Response Get Vector Index"}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}}},"/api/benchmark/embeddings":{"post":{"tags":["lex-db"],"summary":"Benchmark embedding generation performance","description":"Benchmark embedding generation with configurable parameters.","operationId":"benchmark_embeddings","requestBody":{"content":{"application/json":{"schema":{"$ref":"#/components/schemas/BenchmarkEmbeddingsRequest"}}},"required":true},"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"$ref":"#/components/schemas/BenchmarkEmbeddingsResponse"}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}}}},"components":{"schemas":{"BenchmarkEmbeddingsRequest":{"properties":{"model_choice":{"$ref":"#/components/schemas/EmbeddingModel","default":"intfloat/multilingual-e5-small"},"num_texts":{"type":"integer","title":"Num Texts","default":50},"text_length":{"type":"integer","title":"Text Length","default":200}},"type":"object","title":"BenchmarkEmbeddingsRequest"},"BenchmarkEmbeddingsResponse":{"properties":{"num_texts":{"type":"integer","title":"Num Texts"},"avg_text_length":{"type":"integer","title":"Avg Text Length"},"total_time_seconds":{"type":"number","title":"Total Time Seconds"},"texts_per_second":{"type":"number","title":"Texts Per Second"},"ms_per_text":{"type":"number","title":"Ms Per Text"},"embedding_dimension":{"type":"integer","title":"Embedding Dimension"}},"type":"object","required":["num_texts","avg_text_length","total_time_seconds","texts_per_second","ms_per_text","embedding_dimension"],"title":"BenchmarkEmbeddingsResponse"},"EmbeddingModel":{"type":"string","enum":["intfloat/multilingual-e5-small","intfloat/multilingual-e5-large","text-embedding-ada-002","text-embedding-3-small","text-embedding-3-large","mock_model"],"title":"EmbeddingModel","description":"Supported embedding models."},"HTTPValidationError":{"properties":{"detail":{"items":{"$ref":"#/components/schemas/ValidationError"},"type":"array","title":"Detail"}},"type":"object","title":"HTTPValidationError"},"HybridSearchRequest":{"properties":{"query_text":{"type":"string","title":"Query Text"},"top_k":{"type":"integer","title":"Top K","default":10},"top_k_semantic":{"type":"integer","title":"Top K Semantic","default":50},"top_k_fts":{"type":"integer","title":"Top K Fts","default":50},"rrf_k":{"type":"integer","title":"Rrf K","default":60},"methods":{"items":{"$ref":"#/components/schemas/SearchMethod"},"type":"array","title":"Methods","default":["SEMANTIC","FULLTEXT"]}},"type":"object","required":["query_text"],"title":"HybridSearchRequest","description":"Hybrid search request model."},"HybridSearchResults":{"properties":{"results":{"items":{"$ref":"#/components/schemas/RetrievalResult"},"type":"array","title":"Results"}},"type":"object","required":["results"],"title":"HybridSearchResults","description":"Results of a hybrid search."},"RetrievalResult":{"properties":{"rowid":{"type":"integer","title":"Rowid"},"article_id":{"type":"integer","title":"Article Id"},"chunk_sequence":{"type":"integer","title":"Chunk Sequence"},"chunk_text":{"type":"string","title":"Chunk Text"},"score":{"type":"number","title":"Score"}},"type":"object","required":["rowid","article_id","chunk_sequence","chunk_text","score"],"title":"RetrievalResult","description":"A single retrieval result."},"SearchMethod":{"type":"string","enum":["SEMANTIC","FULLTEXT","HYDE"],"title":"SearchMethod"},"SearchResult":{"properties":{"id":{"type":"integer","title":"Id"},"xhtml_md":{"type":"string","title":"Xhtml Md"},"rank":{"type":"number","title":"Rank"},"url":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Url"},"title":{"type":"string","title":"Title"},"headword":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Headword"}},"type":"object","required":["id","xhtml_md","rank","title"],"title":"SearchResult","description":"Single result from a search."},"SearchResults":{"properties":{"entries":{"items":{"$ref":"#/components/schemas/SearchResult"},"type":"array","title":"Entries"},"total":{"type":"integer","title":"Total"},"limit":{"type":"integer","title":"Limit"}},"type":"object","required":["entries","total","limit"],"title":"SearchResults","description":"Results of a search."},"ValidationError":{"properties":{"loc":{"items":{"anyOf":[{"type":"string"},{"type":"integer"}]},"type":"array","title":"Location"},"msg":{"type":"string","title":"Message"},"type":{"type":"string","title":"Error Type"}},"type":"object","required":["loc","msg","type"],"title":"ValidationError"},"VectorSearchRequest":{"properties":{"query_text":{"type":"string","title":"Query Text"},"top_k":{"type":"integer","title":"Top K","default":5}},"type":"object","required":["query_text"],"title":"VectorSearchRequest","description":"Vector search request model."},"VectorSearchResult":{"properties":{"id_in_index":{"type":"integer","title":"Id In Index"},"source_article_id":{"type":"string","title":"Source Article Id"},"chunk_seq":{"type":"integer","title":"Chunk Seq"},"chunk_text":{"type":"string","title":"Chunk Text"},"distance":{"type":"number","title":"Distance"}},"type":"object","required":["id_in_index","source_article_id","chunk_seq","chunk_text","distance"],"title":"VectorSearchResult","description":"Result of a vector search."},"VectorSearchResults":{"properties":{"results":{"items":{"$ref":"#/components/schemas/VectorSearchResult"},"type":"array","title":"Results"}},"type":"object","required":["results"],"title":"VectorSearchResults","description":"Result of a vector search."}}}}
+openapi: 3.1.0
+info:
+  title: Lex DB API
+  description: A PostgreSQL database API for encyclopedia articles with vector and
+    full-text search
+  version: 0.1.0
+paths:
+  /:
+    get:
+      tags:
+      - Health
+      summary: Health Check
+      description: "Health check endpoint.\n\nReturns:\n    dict: Health check information."
+      operationId: health_check__get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                additionalProperties: true
+                type: object
+                title: Response Health Check  Get
+  /api/tables:
+    get:
+      tags:
+      - lex-db
+      summary: Get a list of tables in the database
+      description: Get a list of tables in the database.
+      operationId: get_tables
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                additionalProperties:
+                  items:
+                    type: string
+                  type: array
+                type: object
+                title: Response Get Tables
+  /api/vector-search/indexes/{index_name}/query:
+    post:
+      tags:
+      - lex-db
+      summary: Search a vector index for similar content to the query text
+      description: Search a vector index for similar content to the query text.
+      operationId: vector_search
+      parameters:
+      - name: index_name
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Index Name
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VectorSearchRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VectorSearchResults'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/hybrid-search/indexes/{index_name}/query:
+    post:
+      tags:
+      - lex-db
+      summary: Hybrid search combining semantic and keyword search with RRF fusion
+      description: Perform hybrid search using RRF fusion of semantic and keyword
+        search.
+      operationId: hybrid_search
+      parameters:
+      - name: index_name
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Index Name
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/HybridSearchRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HybridSearchResults'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/hyde-search/indexes/{index_name}/query:
+    post:
+      tags:
+      - lex-db
+      summary: HyDE search using LLM-generated hypothetical document
+      description: 'Perform HyDE search: generate hypothetical document, embed it,
+        and search.'
+      operationId: hyde_search
+      parameters:
+      - name: index_name
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Index Name
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VectorSearchRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VectorSearchResults'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/articles:
+    get:
+      tags:
+      - lex-db
+      summary: "An endpoint for filtering articles based on metadata such as id, text\
+        \ search, etc. Query parameters are used for filtering (e.g. GET /articles?query=Rundet\xE5\
+        rn, or GET /articles?ids=1&ids=2&ids=5)"
+      description: Filter articles based on metadata such as id, text search, etc.
+      operationId: get_articles
+      parameters:
+      - name: query
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Text search in articles
+          title: Query
+        description: Text search in articles
+      - name: ids
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: List of article IDs (comma-separated, JSON list, or repeated)
+          title: Ids
+        description: List of article IDs (comma-separated, JSON list, or repeated)
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 100
+          minimum: 1
+          description: Maximum number of results
+          default: 50
+          title: Limit
+        description: Maximum number of results
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SearchResults'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/vector-search/indexes:
+    get:
+      tags:
+      - lex-db
+      summary: List all vector indexes and their metadata
+      description: Return a list of all vector indexes and their metadata.
+      operationId: list_vector_indexes
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                items:
+                  additionalProperties: true
+                  type: object
+                type: array
+                title: Response List Vector Indexes
+  /api/vector-search/indexes/{index_name}:
+    get:
+      tags:
+      - lex-db
+      summary: Get metadata for a specific vector index
+      description: Return metadata for a specific vector index.
+      operationId: get_vector_index
+      parameters:
+      - name: index_name
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Index Name
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+                title: Response Get Vector Index
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/benchmark/embeddings:
+    post:
+      tags:
+      - lex-db
+      summary: Benchmark embedding generation performance
+      description: Benchmark embedding generation with configurable parameters.
+      operationId: benchmark_embeddings
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BenchmarkEmbeddingsRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BenchmarkEmbeddingsResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+components:
+  schemas:
+    BenchmarkEmbeddingsRequest:
+      properties:
+        model_choice:
+          $ref: '#/components/schemas/EmbeddingModel'
+          default: intfloat/multilingual-e5-small
+        num_texts:
+          type: integer
+          title: Num Texts
+          default: 50
+        text_length:
+          type: integer
+          title: Text Length
+          default: 200
+      type: object
+      title: BenchmarkEmbeddingsRequest
+    BenchmarkEmbeddingsResponse:
+      properties:
+        num_texts:
+          type: integer
+          title: Num Texts
+        avg_text_length:
+          type: integer
+          title: Avg Text Length
+        total_time_seconds:
+          type: number
+          title: Total Time Seconds
+        texts_per_second:
+          type: number
+          title: Texts Per Second
+        ms_per_text:
+          type: number
+          title: Ms Per Text
+        embedding_dimension:
+          type: integer
+          title: Embedding Dimension
+      type: object
+      required:
+      - num_texts
+      - avg_text_length
+      - total_time_seconds
+      - texts_per_second
+      - ms_per_text
+      - embedding_dimension
+      title: BenchmarkEmbeddingsResponse
+    EmbeddingModel:
+      type: string
+      enum:
+      - intfloat/multilingual-e5-small
+      - intfloat/multilingual-e5-large
+      - text-embedding-ada-002
+      - text-embedding-3-small
+      - text-embedding-3-large
+      - mock_model
+      title: EmbeddingModel
+      description: Supported embedding models.
+    HTTPValidationError:
+      properties:
+        detail:
+          items:
+            $ref: '#/components/schemas/ValidationError'
+          type: array
+          title: Detail
+      type: object
+      title: HTTPValidationError
+    HybridSearchRequest:
+      properties:
+        query_text:
+          type: string
+          title: Query Text
+        top_k:
+          type: integer
+          title: Top K
+          default: 10
+        top_k_semantic:
+          type: integer
+          title: Top K Semantic
+          default: 50
+        top_k_fts:
+          type: integer
+          title: Top K Fts
+          default: 50
+        rrf_k:
+          type: integer
+          title: Rrf K
+          default: 60
+        methods:
+          items:
+            $ref: '#/components/schemas/SearchMethod'
+          type: array
+          title: Methods
+          default:
+          - SEMANTIC
+          - FULLTEXT
+      type: object
+      required:
+      - query_text
+      title: HybridSearchRequest
+      description: Hybrid search request model.
+    HybridSearchResults:
+      properties:
+        results:
+          items:
+            $ref: '#/components/schemas/RetrievalResult'
+          type: array
+          title: Results
+      type: object
+      required:
+      - results
+      title: HybridSearchResults
+      description: Results of a hybrid search.
+    RetrievalResult:
+      properties:
+        id:
+          type: integer
+          title: Id
+        article_id:
+          type: integer
+          title: Article Id
+        chunk_sequence:
+          type: integer
+          title: Chunk Sequence
+        chunk_text:
+          type: string
+          title: Chunk Text
+        score:
+          type: number
+          title: Score
+      type: object
+      required:
+      - id
+      - article_id
+      - chunk_sequence
+      - chunk_text
+      - score
+      title: RetrievalResult
+      description: A single retrieval result from FTS or hybrid search.
+    SearchMethod:
+      type: string
+      enum:
+      - SEMANTIC
+      - FULLTEXT
+      - HYDE
+      title: SearchMethod
+    SearchResult:
+      properties:
+        id:
+          type: integer
+          title: Id
+        xhtml_md:
+          type: string
+          title: Xhtml Md
+        rank:
+          type: number
+          title: Rank
+        url:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Url
+        title:
+          type: string
+          title: Title
+        headword:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Headword
+      type: object
+      required:
+      - id
+      - xhtml_md
+      - rank
+      - title
+      title: SearchResult
+      description: Single result from a search.
+    SearchResults:
+      properties:
+        entries:
+          items:
+            $ref: '#/components/schemas/SearchResult'
+          type: array
+          title: Entries
+        total:
+          type: integer
+          title: Total
+        limit:
+          type: integer
+          title: Limit
+      type: object
+      required:
+      - entries
+      - total
+      - limit
+      title: SearchResults
+      description: Results of a search.
+    ValidationError:
+      properties:
+        loc:
+          items:
+            anyOf:
+            - type: string
+            - type: integer
+          type: array
+          title: Location
+        msg:
+          type: string
+          title: Message
+        type:
+          type: string
+          title: Error Type
+      type: object
+      required:
+      - loc
+      - msg
+      - type
+      title: ValidationError
+    VectorSearchRequest:
+      properties:
+        query_text:
+          type: string
+          title: Query Text
+        top_k:
+          type: integer
+          title: Top K
+          default: 5
+      type: object
+      required:
+      - query_text
+      title: VectorSearchRequest
+      description: Vector search request model.
+    VectorSearchResult:
+      properties:
+        id_in_index:
+          type: integer
+          title: Id In Index
+        source_article_id:
+          type: string
+          title: Source Article Id
+        chunk_seq:
+          type: integer
+          title: Chunk Seq
+        chunk_text:
+          type: string
+          title: Chunk Text
+        distance:
+          type: number
+          title: Distance
+      type: object
+      required:
+      - id_in_index
+      - source_article_id
+      - chunk_seq
+      - chunk_text
+      - distance
+      title: VectorSearchResult
+      description: Result of a vector search.
+    VectorSearchResults:
+      properties:
+        results:
+          items:
+            $ref: '#/components/schemas/VectorSearchResult'
+          type: array
+          title: Results
+      type: object
+      required:
+      - results
+      title: VectorSearchResults
+      description: Result of a vector search.
