@@ -1,10 +1,15 @@
+from datetime import datetime
+
 from lex_db_api.models.search_method import SearchMethod
 from lex_llm.api.connectors.scaleway_provider import ScalewayProvider
 
 from ..api.orchestrator import Orchestrator
 from ..api.event_models import WorkflowRunRequest
 from ..tools import search_knowledge_base, generate_response_with_sources
-from ..prompts import ALPHA_V1_SYSTEM_PROMPT, ALPHA_V1_DEFERRAL_MESSAGE
+from ..prompts import (
+    get_deferral_message,
+    get_system_prompt,
+)
 
 
 def get_workflow(request: WorkflowRunRequest) -> Orchestrator:
@@ -21,8 +26,12 @@ def get_workflow(request: WorkflowRunRequest) -> Orchestrator:
             ),
             generate_response_with_sources(
                 llm_provider=ScalewayProvider(model="gemma-3-27b-it"),
-                system_prompt=ALPHA_V1_SYSTEM_PROMPT,
-                deferral_message=ALPHA_V1_DEFERRAL_MESSAGE,
+                system_prompt=get_system_prompt(
+                    version="alpha_v1",
+                    current_date=datetime.today(),
+                    workflow_description=get_metadata()["description"],
+                ),
+                deferral_message=get_deferral_message(version="alpha_v1"),
             ),
         ],
         context={"conversation_history": request.conversation_history},
@@ -33,16 +42,11 @@ def get_metadata() -> dict:
     return {
         "workflow_id": "beta_workflow_v2_hybrid",
         "name": "Beta Workflow v2 with different search methods",
-        "description": "Version 2 of the beta workflow using hybrid search method (combines semantic search with full-text search using RRF).",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "user_input": {"type": "string"},
-                "conversation_id": {"type": "string"},
-                "conversation_history": {"type": "array", "items": {"type": "object"}},
-            },
-            "required": ["user_input", "conversation_id", "conversation_history"],
-        },
+        "description": (
+            "Version 2 of the beta workflow using hybrid search method "
+            "(combines semantic search with full-text search using RRF)."
+            "Uses Google Gemma 3 27B via OpenRouter and the multilingual e5 large embedding model hosted locally. "
+        ),
         "steps": [
             {
                 "name": "Knowledge Base Search",
@@ -51,7 +55,7 @@ def get_metadata() -> dict:
                 "outputs": ["retrieved_docs", "sources"],
             },
             {
-                "name": "Response Generation",
+                "name": "Response Generation with sources",
                 "description": "Formats a prompt using the retrieved documents and streams the LLM response using Gemma.",
                 "inputs": ["retrieved_docs", "conversation_history", "user_input"],
                 "outputs": ["final_response"],
@@ -59,12 +63,4 @@ def get_metadata() -> dict:
         ],
         "author": "Zafar Hussain",
         "version": "2.0.0",
-        "tags": [
-            "rag",
-            "retrieval",
-            "generation",
-            "knowledge base",
-            "Hybrid Search",
-            "Hyde",
-        ],
     }

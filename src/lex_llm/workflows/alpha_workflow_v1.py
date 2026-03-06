@@ -189,15 +189,6 @@ def get_metadata() -> dict:
         "workflow_id": "alpha_workflow_v1",
         "name": "Alpha Workflow v1",
         "description": "Version 1 of the workflow for the alpha version. Performs a simple retrieval-augmented generation (RAG) using a knowledge base and an LLM and outputs a source list.",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "user_input": {"type": "string"},
-                "conversation_id": {"type": "string"},
-                "conversation_history": {"type": "array", "items": {"type": "object"}},
-            },
-            "required": ["user_input", "conversation_id", "conversation_history"],
-        },
         "steps": [
             {
                 "name": "Knowledge Base Search",
@@ -214,5 +205,4 @@ def get_metadata() -> dict:
         ],
         "author": "Simon Enni",
         "version": "1.0.0",
-        "tags": ["rag", "retrieval", "generation", "knowledge base", "openai"],
     }
