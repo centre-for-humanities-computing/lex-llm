@@ -1,19 +1,26 @@
-from typing import AsyncGenerator, List
 import litellm
-
-from lex_llm.api.connectors.llm_provider import LLMProvider
 from ..event_models import ConversationMessage
+from .llm_provider import LLMProvider
+import os
+from typing import AsyncGenerator, List
 
 
-class OpenAIProvider(LLMProvider):
+class ScalewayProvider(LLMProvider):
     """Implementation for OpenAI's API."""
+
+    def __init__(self, model: str = "gemma-3-27b-it"):
+        os.environ["OPENAI_API_KEY"] = os.environ["SCW_SECRET_KEY"]
+        os.environ["OPENAI_BASE_URL"] = (
+            "https://api.scaleway.ai/" + os.environ["SCALEWAY_ORGID"] + "/v1"
+        )
+        self.model = model
 
     async def generate_stream(
         self, messages: List[ConversationMessage]
     ) -> AsyncGenerator[str, None]:
-        """Calls the OpenAI API and streams the response."""
+        """Calls the Scaleways API and streams the response."""
         stream = await litellm.acompletion(
-            model="gpt-4.1", messages=messages, stream=True
+            model="openai/" + self.model, messages=messages, stream=True
         )
         async for chunk in stream:  # type: ignore
             content = chunk.choices[0].delta.content
