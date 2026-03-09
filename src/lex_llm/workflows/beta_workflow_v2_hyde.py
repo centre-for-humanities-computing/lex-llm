@@ -1,6 +1,7 @@
+from lex_llm.api.connectors.scaleway_provider import ScalewayProvider
+
 from ..api.orchestrator import Orchestrator
 from ..api.event_models import WorkflowRunRequest
-from ..api.connectors.openrouter_provider import OpenRouterProvider
 from ..tools import search_knowledge_base, generate_response_with_sources
 from ..prompts import ALPHA_V1_SYSTEM_PROMPT, ALPHA_V1_DEFERRAL_MESSAGE
 
@@ -17,10 +18,7 @@ def get_workflow(request: WorkflowRunRequest) -> Orchestrator:
                 search_method="hyde_search",
             ),
             generate_response_with_sources(
-                llm_provider=OpenRouterProvider(
-                    model="google/gemma-3-27b-it",
-                    providers=["nebius/fp8"],  # Only use the nebius/fp8 provider
-                ),
+                llm_provider=ScalewayProvider(model="gemma-3-27b-it"),
                 system_prompt=ALPHA_V1_SYSTEM_PROMPT,
                 deferral_message=ALPHA_V1_DEFERRAL_MESSAGE,
             ),
