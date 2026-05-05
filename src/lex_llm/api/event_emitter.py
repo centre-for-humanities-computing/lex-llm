@@ -9,6 +9,8 @@ from .event_models import (
     StreamEndData,
     ToolCallData,
     ErrorData,
+    DefinitionItem,
+    DefinitionsData,
 )
 
 
@@ -47,6 +49,23 @@ class EventEmitter:
 
     def reasoning_chunk(self, text: str) -> str:
         return self.emit("reasoning_chunk", text)
+
+    def lead_paragraph_chunk(self, text: str) -> str:
+        """Emits a lead paragraph text chunk."""
+        return self.emit("lead_paragraph", text)
+
+    def answer_body_chunk(self, text: str) -> str:
+        """Emits an answer body text chunk."""
+        return self.emit("answer_body", text)
+
+    def interpretation_chunk(self, text: str) -> str:
+        """Emits an interpretation text chunk."""
+        return self.emit("interpretation", text)
+
+    def definitions(self, definitions: List[DefinitionItem]) -> str:
+        """Emits a list of term definitions."""
+        data = DefinitionsData(definitions=definitions)
+        return self.emit("definitions", data)
 
     def tool_call(self, name: str, input_data: Dict[str, Any]) -> str:
         data = ToolCallData(name=name, input=input_data)

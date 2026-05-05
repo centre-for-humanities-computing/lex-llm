@@ -22,6 +22,11 @@ class Source(BaseModel):
     url: str
 
 
+class DefinitionItem(BaseModel):
+    term: str
+    definition: str
+
+
 # Event Data Models
 class StreamStartData(BaseModel):
     conversation_history: Optional[List[ConversationMessage]] = None
@@ -49,6 +54,10 @@ class WorkflowStepData(BaseModel):
 class ErrorData(BaseModel):
     code: Optional[str] = None
     message: str
+
+
+class DefinitionsData(BaseModel):
+    definitions: List[DefinitionItem]
 
 
 class StreamEvent(BaseModel):

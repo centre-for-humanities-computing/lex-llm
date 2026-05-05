@@ -1,5 +1,6 @@
 import uuid
-from typing import Callable, Dict, Any, AsyncGenerator, List
+import asyncio
+from typing import Callable, Dict, Any, AsyncGenerator, List, Union
 from .event_emitter import EventEmitter
 from .event_models import ConversationMessage, WorkflowRunRequest, WorkflowStepData
 
@@ -9,11 +10,25 @@ StepFunc = Callable[
 ]
 
 
+class ParallelStep:
+    """Wraps multiple step functions to be executed concurrently.
+
+    All steps share the same context dict. Events yielded by each step
+    are interleaved into the main event stream via an asyncio.Queue.
+    If any step raises an exception, the others are cancelled and the
+    error is propagated.
+    """
+
+    def __init__(self, steps: List[StepFunc], label: str = "parallel"):
+        self.steps = steps
+        self.__name__ = label
+
+
 class Orchestrator:
     def __init__(
         self,
         request: WorkflowRunRequest,
-        steps: List[StepFunc],
+        steps: List[Union[StepFunc, ParallelStep]],
         context: Dict[str, Any] = {},
     ):
         self.request = request
@@ -21,6 +36,79 @@ class Orchestrator:
         self.emitter = EventEmitter(conversation_id=request.conversation_id)
         # A simple dictionary to pass state between steps
         self.context: Dict[str, Any] = {**context, **request.model_dump()}
+
+    async def _run_step(
+        self, step_func: StepFunc, step_id: str, step_name: str
+    ) -> AsyncGenerator[str, None]:
+        """Run a single step, wrapping it with workflow_step events."""
+        yield self.emitter.workflow_step(
+            WorkflowStepData(step_id=step_id, name=step_name, status="started")
+        )
+
+        async for event in step_func(self.context, self.emitter):
+            if event:
+                yield event
+
+        yield self.emitter.workflow_step(
+            WorkflowStepData(step_id=step_id, name=step_name, status="completed")
+        )
+
+    async def _run_parallel_step(
+        self, parallel: ParallelStep
+    ) -> AsyncGenerator[str, None]:
+        """Run multiple steps concurrently, interleaving their events."""
+        step_id = str(uuid.uuid4())
+        step_name = parallel.__name__
+
+        yield self.emitter.workflow_step(
+            WorkflowStepData(step_id=step_id, name=step_name, status="started")
+        )
+
+        queue: asyncio.Queue[str | None] = asyncio.Queue()
+        step_count = len(parallel.steps)
+
+        async def _drain_step(step_func: StepFunc) -> None:
+            """Run a step and push its events into the shared queue."""
+            try:
+                async for event in step_func(self.context, self.emitter):
+                    if event:
+                        await queue.put(event)
+            except Exception as e:
+                # Put the exception in the queue so the consumer can raise it
+                await queue.put(e)  # type: ignore
+            finally:
+                await queue.put(None)  # Signal this step is done
+
+        tasks = [
+            asyncio.create_task(_drain_step(step)) for step in parallel.steps
+        ]
+
+        try:
+            completed = 0
+            while completed < step_count:
+                item = await queue.get()
+                if item is None:
+                    completed += 1
+                elif isinstance(item, Exception):
+                    raise item
+                else:
+                    yield item
+        except Exception:
+            # Cancel remaining tasks on error
+            for task in tasks:
+                task.cancel()
+            raise
+        finally:
+            # Ensure all tasks are cleaned up
+            for task in tasks:
+                if not task.done():
+                    task.cancel()
+            # Await tasks to suppress cancelled warnings
+            await asyncio.gather(*tasks, return_exceptions=True)
+
+        yield self.emitter.workflow_step(
+            WorkflowStepData(step_id=step_id, name=step_name, status="completed")
+        )
 
     async def execute(self) -> AsyncGenerator[str, None]:
         """Executes the workflow steps and yields NDJSON events."""
@@ -30,24 +118,34 @@ class Orchestrator:
 
         try:
             # Execute each step in the defined sequence
-            for step_func in self.steps:
-                step_id = str(uuid.uuid4())
-                step_name = step_func.__name__
+            for step in self.steps:
+                # Check for early termination
+                if self.context.get("_workflow_done"):
+                    break
 
-                yield self.emitter.workflow_step(
-                    WorkflowStepData(step_id=step_id, name=step_name, status="started")
-                )
-
-                # The actual execution of the step
-                async for event in step_func(self.context, self.emitter):
-                    if event:
+                if isinstance(step, ParallelStep):
+                    async for event in self._run_parallel_step(step):
                         yield event
+                else:
+                    step_id = str(uuid.uuid4())
+                    step_name = step.__name__
 
-                yield self.emitter.workflow_step(
-                    WorkflowStepData(
-                        step_id=step_id, name=step_name, status="completed"
+                    yield self.emitter.workflow_step(
+                        WorkflowStepData(
+                            step_id=step_id, name=step_name, status="started"
+                        )
                     )
-                )
+
+                    # The actual execution of the step
+                    async for event in step(self.context, self.emitter):
+                        if event:
+                            yield event
+
+                    yield self.emitter.workflow_step(
+                        WorkflowStepData(
+                            step_id=step_id, name=step_name, status="completed"
+                        )
+                    )
 
         except Exception as e:
             # Emit a detailed error and stop execution
