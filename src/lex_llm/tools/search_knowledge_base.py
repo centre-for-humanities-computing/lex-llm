@@ -1,10 +1,11 @@
 """Knowledge base search tools for workflows."""
 
-from typing import AsyncGenerator, Dict, Any, Callable
+from collections.abc import AsyncGenerator, Callable
+from typing import Any
 
 from lex_db_api.models.search_method import SearchMethod
 from ..api.event_emitter import EventEmitter
-from ..api.connectors.lex_db_connector import LexDBConnector
+from ..api.connectors.lex_db_connector import LexDBConnector, group_chunks_to_articles
 
 
 def search_knowledge_base(
@@ -12,7 +13,7 @@ def search_knowledge_base(
     top_k: int = 10,
     search_method: str = "vector_search",
     methods: list[SearchMethod] | None = None,
-) -> Callable[[Dict[str, Any], EventEmitter], AsyncGenerator[None, None]]:
+) -> Callable[[dict[str, Any], EventEmitter], AsyncGenerator[None, None]]:
     """
     Creates a knowledge base search step with the specified parameters.
 
@@ -27,25 +28,26 @@ def search_knowledge_base(
     """
 
     async def search_knowledge_base(
-        context: Dict[str, Any], emitter: EventEmitter
+        context: dict[str, Any], emitter: EventEmitter
     ) -> AsyncGenerator[None, None]:
         """Queries the KB and prepares sources for emission."""
         lex_db_connector = LexDBConnector()
         user_input = context.get("user_input", "")
 
         if search_method == "hybrid_search":
-            documents = await lex_db_connector.hybrid_search(
+            chunks = await lex_db_connector.hybrid_search(
                 query=user_input, top_k=top_k, index_name=index_name, methods=methods
             )
         elif search_method == "hyde_search":
-            documents = await lex_db_connector.hyde_search(
+            chunks = await lex_db_connector.hyde_search(
                 query=user_input, top_k=top_k, index_name=index_name
             )
         else:  # Default to vector_search
-            documents = await lex_db_connector.vector_search(
+            chunks = await lex_db_connector.vector_search(
                 query=user_input, top_k=top_k, index_name=index_name
             )
-        context["retrieved_docs"] = documents
+        context["retrieved_chunks"] = chunks
+        context["retrieved_docs"] = group_chunks_to_articles(chunks)
         yield
 
     return search_knowledge_base

@@ -79,9 +79,7 @@ class Orchestrator:
             finally:
                 await queue.put(None)  # Signal this step is done
 
-        tasks = [
-            asyncio.create_task(_drain_step(step)) for step in parallel.steps
-        ]
+        tasks = [asyncio.create_task(_drain_step(step)) for step in parallel.steps]
 
         try:
             completed = 0
@@ -137,9 +135,9 @@ class Orchestrator:
                     )
 
                     # The actual execution of the step
-                    async for event in step(self.context, self.emitter):
-                        if event:
-                            yield event
+                    async for step_event in step(self.context, self.emitter):
+                        if step_event:
+                            yield step_event
 
                     yield self.emitter.workflow_step(
                         WorkflowStepData(

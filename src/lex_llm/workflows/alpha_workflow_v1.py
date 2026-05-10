@@ -106,7 +106,10 @@ async def generate_response(
     context["sources"] = used_sources
     # Emit only the used sources (not all retrieved ones)
     yield emitter.sources(
-        [Source(id=src.id, title=src.title, url=src.url) for src in used_sources]
+        [
+            Source(id=src.id, title=src.title, url=src.url if src.url else "")
+            for src in used_sources
+        ]
     )
 
 

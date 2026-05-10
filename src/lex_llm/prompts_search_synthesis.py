@@ -50,8 +50,18 @@ _LEX_DOMAIN_DESCRIPTION = (
 def _format_date(d: date) -> str:
     """Format a date object in Danish format (e.g., '5. maj 2026')."""
     months = [
-        "januar", "februar", "marts", "april", "maj", "juni",
-        "juli", "august", "september", "oktober", "november", "december",
+        "januar",
+        "februar",
+        "marts",
+        "april",
+        "maj",
+        "juni",
+        "juli",
+        "august",
+        "september",
+        "oktober",
+        "november",
+        "december",
     ]
     return f"{d.day}. {months[d.month - 1]} {d.year}"
 
@@ -159,11 +169,11 @@ _HYDE_SYSTEM = f"""Du er en forfatter af encyklopædisk indhold for Lex, en dans
 - Undgå figurativ eller fortællende sprog.
 - Artiklen behøver ikke være korrekt — den skal blot ligne en rigtig encyklopædiartikel, så den kan bruges til at finde relevante rigtige artikler via semantisk søgning.
 - Returner KUN et JSON-objekt med følgende format:
-  {"passages": ["paragraf 1", "paragraf 2", ...]}
+  {{"passages": ["paragraf 1", "paragraf 2", ...]}}
   
 Eksempel:
     Brugerforespørgsel: "Hvornår blev Rundetårn bygget?"
-    Output: {"passages": ["Rundetårn blev bygget i København i begyndelsen af det 17. århundrede som en del af Christian IV's byggeprojekter. Opførelsen startede i 1637 og blev afsluttet i 1642. Rundetårn er kendt for sin unikke spiralrampe og har fungeret som både observatorium og bibliotek gennem historien."]}
+    Output: {{"passages": ["Rundetårn blev bygget i København i begyndelsen af det 17. århundrede som en del af Christian IV's byggeprojekter. Opførelsen startede i 1637 og blev afsluttet i 1642. Rundetårn er kendt for sin unikke spiralrampe og har fungeret som både observatorium og bibliotek gennem historien."]}}
 """
 
 
@@ -282,9 +292,9 @@ def get_relevance_evaluation_prompt(
 _ANSWER_BODY_SYSTEM = """Du er en encyklopædisk forfatter for Lex, en dansk encyklopædi. Din opgave er at skrive en grundig og præcis artikel der besvarer brugerens forespørgsel, udelukkende baseret på de leverede kilder.
 
 # Masterregler
-1. TROHED: Svar udelukkende ud fra de leverede artikler. Brug IKKE din egen viden.
-2. AFGRÆNSNING: Hvis informationen ikke findes i artiklerne, så angiv det tydeligt i stedet for at gætte.
-3. RELEVANS: Prioritér den mest direkte relevante information fra kilderne frem for udtømmende dækning.
+1. VÆR TRO MOD KILDEMATERIALET: Svar udelukkende ud fra de leverede artikler. Brug IKKE din egen viden.
+2. VÆR AFGRÆNSET: Hvis informationen ikke findes i artiklerne, så angiv det tydeligt i stedet for at gætte.
+3. VÆR RELEVANT: Prioritér den mest direkte relevante information fra kilderne frem for udtømmende dækning.
 
 # Redaktionelle standarder
 - Respektér læserens tid og opmærksomhed.
@@ -293,7 +303,7 @@ _ANSWER_BODY_SYSTEM = """Du er en encyklopædisk forfatter for Lex, en dansk enc
 - Bevar en neutral og afmålt tone.
 - Minimér tekstuel kompleksitet, akademisk register og unødvendigt jargon.
 - Placér historiske fakta i deres geografiske og kronologiske kontekst.
-- Brug eksempler til at illustrere nøglebegreber, men KUN fra kildematerialet.
+- Brug KUN eksempler fra kildematerialet.
 - Undgå normative eller emotionelle vurderinger.
 - Tiltal aldrig læseren direkte.
 - Gør ingen antagelser om læseren.
@@ -304,9 +314,9 @@ _ANSWER_BODY_SYSTEM = """Du er en encyklopædisk forfatter for Lex, en dansk enc
 - Skriv en sammenhængende brødtekst der uddyber svaret.
 - Begynd med den vigtigste information.
 - Uddyb med kontekst, baggrund og nuancering.
-- Definér centrale begreber når de introduceres.
-- Brug IKKE markdown-links eller kildehenvisninger direkte i teksten.
-- Hvis du citerer direkte fra en artikel, skal det være ordret.
+- Skriv IKKE en indledning der forklarer hvordan du vil besvare spørgsmålet — gå direkte til sagen.
+- Skriv IKKE definitioner eller forklaringer af termer medmindre de passer naturligt ind i tekstens flow.
+- Lav IKKE en kildeliste og brug IKKE markdown-links eller kildehenvisninger direkte i teksten. Hvis du citerer direkte fra en artikel, skal det være ordret.
 
 # Sprog
 - Svar ALTID på dansk.
@@ -328,8 +338,6 @@ Når du besvarer spørgsmål:
 
 
 def get_answer_body_prompt(
-    user_input: str,
-    interpretation: str,
     current_date: str | date | None = None,
     workflow_description: str | None = None,
 ) -> str:
@@ -537,7 +545,7 @@ _HYDE_REFINEMENT_SYSTEM = f"""Du er en forfatter af encyklopædisk indhold for L
 - Inkludér alternative termer og synonymer der kunne optræde i en rigtig encyklopædiartikel.
 - Brug forslaget til forbedring som vejledning for hvordan artiklen skal justeres.
 - Returner KUN et JSON-objekt med følgende format:
-  {"passages": ["paragraf 1", "paragraf 2", ...]}
+  {{"passages": ["paragraf 1", "paragraf 2", ...]}}
 """
 
 
@@ -599,6 +607,99 @@ def get_keyword_broadening_prompt(
                 f"Tidligere søgeforespørgsler: [{previous}]\n"
                 f"Forslag til forbedring: {refinement_suggestion}\n\n"
                 "Generer bredere og mere varierede søgeforespørgsler."
+            ),
+        },
+    ]
+
+
+# ---------------------------------------------------------------------------
+# 13. Intermediate expansion prompt (merged semantic subqueries + keywords)
+# ---------------------------------------------------------------------------
+
+_INTERMEDIATE_EXPANSION_SYSTEM = """Du er en søgeekspert for Lex, en dansk encyklopædi. En simpel søgning med brugerens originale forespørgsel gav ikke tilstrækkeligt relevante resultater. Din opgave er at generere to sæt søgeforespørgsler i ét svar:
+
+1. **semantic_queries**: 2-4 korte, præcise semantiske underforespørgsler der nedbryder eller omformulerer brugerens spørgsmål. Disse skal være korte sætninger eller fraser (ikke hele paragraffer) der dækker forskellige aspekter eller fortolkninger af emnet. De bruges til vektorsøgning.
+
+2. **keyword_queries**: 2-4 søgeforespørgsler med relevante søgeord. Disse bruges til fuldtekstsøgning og skal indeholde termer der ville optræde i en encyklopædiartikel.
+
+# Regler
+- Skriv ALTID på dansk.
+- Semantic queries skal være korte (max 1-2 sætninger) — ikke lange hypotetiske tekster.
+- Keyword queries skal bestå af 1-5 relevante søgeord pr. forespørgsel.
+- Brug synonymer, relaterede begreber og alternative formuleringer.
+- Returner KUN et JSON-objekt med følgende format:
+  {"semantic_queries": ["forespørgsel 1", "forespørgsel 2", ...], "keyword_queries": ["søgeord 1", "søgeord 2", ...]}
+
+Eksempel:
+Brugerforespørgsel: "Hvad var følgerne af Den Sorte Død i Danmark?"
+Output: {"semantic_queries": ["Den Sorte Død konsekvenser Danmark", "pestens indvirkning på dansk middelaldersamfund", "befolkningsfald pest 14. århundrede Skandinavien"], "keyword_queries": ["Den Sorte Død Danmark", "pest middelalder befolkning", "Sortedød konsekvenser 1350", "middelalder epidemi Danmark"]}
+"""
+
+
+def get_intermediate_expansion_prompt(
+    user_input: str,
+    interpretation: str,
+    relevance_feedback: str,
+) -> list[dict[str, str]]:
+    """Build messages for intermediate expansion: short semantic subqueries + keyword queries in one call."""
+    return [
+        {"role": "system", "content": _INTERMEDIATE_EXPANSION_SYSTEM},
+        {
+            "role": "user",
+            "content": (
+                f"Brugerens forespørgsel: {user_input}\n"
+                f"Fortolkning: {interpretation}\n"
+                f"Feedback fra tidligere søgning: {relevance_feedback}\n\n"
+                "Generer semantiske underforespørgsler og søgeord."
+            ),
+        },
+    ]
+
+
+# ---------------------------------------------------------------------------
+# 14. Advanced expansion prompt (merged HyDE passages + broadened keywords)
+# ---------------------------------------------------------------------------
+
+_ADVANCED_EXPANSION_SYSTEM = f"""Du er en søge- og indholdspecialist for Lex, en dansk encyklopædi. To tidligere søgninger har ikke givet tilstrækkeligt relevante resultater. Din opgave er at generere to sæt søgeforespørgsler i ét svar:
+
+1. **passages**: 1-4 hypotetiske encyklopædiafsnit (2-4 sætninger hver) der beskriver hvad en rigtig Lex-artikel om emnet ville indeholde. Disse bruges til semantisk vektorsøgning og behøver ikke være korrekte — de skal blot ligne rigtige encyklopædiafsnit.
+
+2. **keyword_queries**: 2-4 bredere søgeforespørgsler med alternative termer, synonymer og relaterede begreber. Disse bruges til fuldtekstsøgning og skal dække bredere end de tidligere forsøg.
+
+# Lex' domæne
+{_LEX_DOMAIN_DESCRIPTION}
+
+# Regler
+- Skriv ALTID på dansk.
+- Passages skal have en neutral, faktuel og encyklopædisk tone, skrevet i tredjeperson.
+- Keyword queries skal inkludere bredere og mere generelle termer end tidligere forsøg.
+- Brug forslaget til forbedring som vejledning.
+- Returner KUN et JSON-objekt med følgende format:
+  {{"passages": ["afsnit 1", "afsnit 2", ...], "keyword_queries": ["søgeord 1", "søgeord 2", ...]}}
+"""
+
+
+def get_advanced_expansion_prompt(
+    user_input: str,
+    interpretation: str,
+    previous_semantic_queries: list[str],
+    previous_keyword_queries: list[str],
+    refinement_suggestion: str,
+) -> list[dict[str, str]]:
+    """Build messages for advanced expansion: HyDE passages + broadened keywords in one call."""
+    prev_semantic = "\n".join(f"- {q}" for q in previous_semantic_queries)
+    prev_keywords = ", ".join(f'"{q}"' for q in previous_keyword_queries)
+    return [
+        {"role": "system", "content": _ADVANCED_EXPANSION_SYSTEM},
+        {
+            "role": "user",
+            "content": (
+                f"Brugerens forespørgsel: {user_input}\n"
+                f"Fortolkning: {interpretation}\n"
+                f"Tidligere semantiske forespørgsler:\n{prev_semantic}\n"
+                f"Tidligere nøgleordsforespørgsler: [{prev_keywords}]\n"
+                f"Forslag til forbedring: {refinement_suggestion}\n\n"
+                "Generer hypotetiske encyklopædiafsnit og bredere søgeord."
             ),
         },
     ]

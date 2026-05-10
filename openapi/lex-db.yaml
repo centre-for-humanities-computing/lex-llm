@@ -73,14 +73,53 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/vector-search/indexes/{index_name}/batch:
+    post:
+      tags:
+      - lex-db
+      summary: Batch search a vector index for similar content to multiple query texts
+      description: Search a vector index for similar content to multiple query texts
+        in batch.
+      operationId: batch_vector_search
+      parameters:
+      - name: index_name
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Index Name
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BatchVectorSearchRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/VectorSearchResults'
+                title: Response Batch Vector Search
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/hybrid-search/indexes/{index_name}/query:
     post:
       tags:
       - lex-db
-      summary: Hybrid search combining semantic and keyword search with RRF fusion
+      summary: '[DEPRECATED] Hybrid search combining semantic and keyword search with
+        RRF fusion. Use batch semantic and/or batch fulltext search instead.'
       description: Perform hybrid search using RRF fusion of semantic and keyword
         search.
       operationId: hybrid_search
+      deprecated: true
       parameters:
       - name: index_name
         in: path
@@ -111,10 +150,12 @@ paths:
     post:
       tags:
       - lex-db
-      summary: HyDE search using LLM-generated hypothetical document
+      summary: '[DEPRECATED] HyDE search using LLM-generated hypothetical document.
+        Use batch semantic search instead.'
       description: 'Perform HyDE search: generate hypothetical document, embed it,
         and search.'
       operationId: hyde_search
+      deprecated: true
       parameters:
       - name: index_name
         in: path
@@ -135,6 +176,45 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/VectorSearchResults'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/text-search/indexes/{index_name}/batch:
+    post:
+      tags:
+      - lex-db
+      summary: Batch fulltext search across vector index chunks
+      description: Perform batch fulltext search on vector index chunks using Danish
+        FTS.
+      operationId: batch_fulltext_search
+      parameters:
+      - name: index_name
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Index Name
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BatchFulltextSearchRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/RetrievalResult'
+                title: Response Batch Fulltext Search
         '422':
           description: Validation Error
           content:
@@ -270,6 +350,43 @@ paths:
                 $ref: '#/components/schemas/HTTPValidationError'
 components:
   schemas:
+    BatchFulltextSearchRequest:
+      properties:
+        queries:
+          items:
+            type: string
+          type: array
+          title: Queries
+        top_k:
+          type: integer
+          title: Top K
+          default: 50
+      type: object
+      required:
+      - queries
+      title: BatchFulltextSearchRequest
+      description: Batch fulltext search request model.
+    BatchVectorSearchRequest:
+      properties:
+        queries:
+          items:
+            prefixItems:
+            - type: string
+            - $ref: '#/components/schemas/TextType'
+            type: array
+            maxItems: 2
+            minItems: 2
+          type: array
+          title: Queries
+        top_k:
+          type: integer
+          title: Top K
+          default: 5
+      type: object
+      required:
+      - queries
+      title: BatchVectorSearchRequest
+      description: Batch vector search request model.
     BenchmarkEmbeddingsRequest:
       properties:
         model_choice:
@@ -319,6 +436,8 @@ components:
       enum:
       - intfloat/multilingual-e5-small
       - intfloat/multilingual-e5-large
+      - jinaai/jina-embeddings-v5-text-small
+      - jinaai/jina-embeddings-v5-text-nano
       - text-embedding-ada-002
       - text-embedding-3-small
       - text-embedding-3-large
@@ -367,7 +486,8 @@ components:
       required:
       - query_text
       title: HybridSearchRequest
-      description: Hybrid search request model.
+      description: "Hybrid search request model.\n\n.. deprecated::\n    Use batch\
+        \ semantic search and/or batch fulltext search endpoints instead."
     HybridSearchResults:
       properties:
         results:
@@ -397,6 +517,16 @@ components:
         score:
           type: number
           title: Score
+        url:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Url
+        title:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Title
       type: object
       required:
       - id
@@ -465,6 +595,12 @@ components:
       - limit
       title: SearchResults
       description: Results of a search.
+    TextType:
+      type: string
+      enum:
+      - query
+      - passage
+      title: TextType
     ValidationError:
       properties:
         loc:
@@ -517,6 +653,16 @@ components:
         distance:
           type: number
           title: Distance
+        url:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Url
+        title:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Title
       type: object
       required:
       - id_in_index

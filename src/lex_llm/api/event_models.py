@@ -19,7 +19,7 @@ class WorkflowRunRequest(BaseModel):
 class Source(BaseModel):
     id: Union[str, int]
     title: str
-    url: str
+    url: str | None = None
 
 
 class DefinitionItem(BaseModel):
@@ -64,4 +64,5 @@ class StreamEvent(BaseModel):
     event: str
     conversation_id: str
     run_id: str
+    timestamp: Optional[str] = None
     data: Optional[Any] = None

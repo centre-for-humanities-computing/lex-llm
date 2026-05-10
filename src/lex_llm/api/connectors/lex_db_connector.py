@@ -1,14 +1,17 @@
-from typing import List
 import httpx
 import os
+from typing_extensions import deprecated
 from pydantic import BaseModel
 
 from lex_db_api.api.lex_db_api import LexDbApi
 from lex_db_api.api_client import ApiClient
 from lex_db_api.configuration import Configuration
 from lex_db_api.models.search_method import SearchMethod
+from lex_db_api.models.text_type import TextType
 from lex_db_api.models.vector_search_request import VectorSearchRequest
 from lex_db_api.models.hybrid_search_request import HybridSearchRequest
+from lex_db_api.models.batch_vector_search_request import BatchVectorSearchRequest
+from lex_db_api.models.batch_fulltext_search_request import BatchFulltextSearchRequest
 
 lexdb_client = ApiClient(
     configuration=Configuration(host=os.getenv("DB_HOST", "http://localhost:8000"))
@@ -16,11 +19,63 @@ lexdb_client = ApiClient(
 lexdb_api = LexDbApi(api_client=lexdb_client)
 
 
+class LexChunk(BaseModel):
+    """A single chunk retrieved from the knowledge base.
+
+    Chunks are the atomic unit returned by search endpoints. They preserve
+    chunk-level granularity for RRF fusion, reranking, and sorted ordering
+    in prompts (to maximize KV cache hits during generation).
+    """
+
+    article_id: int
+    chunk_seq: int
+    chunk_text: str
+    title: str | None = None
+    url: str | None = None
+
+
 class LexArticle(BaseModel):
+    """An article reconstructed from grouped chunks.
+
+    This is a convenience view for downstream consumers that need
+    article-level data (e.g., source attribution, conversation history).
+    """
+
     id: int
     title: str
     text: str
-    url: str
+    url: str | None = None
+
+
+def group_chunks_to_articles(chunks: list[LexChunk]) -> list[LexArticle]:
+    """Group chunks by article_id into LexArticle objects.
+
+    Chunks within each article are sorted by chunk_seq to ensure
+    correct text ordering. Articles are returned in the order of
+    first appearance of their chunks.
+    """
+    from collections import OrderedDict
+
+    grouped: OrderedDict[int, list[LexChunk]] = OrderedDict()
+    for chunk in chunks:
+        grouped.setdefault(chunk.article_id, []).append(chunk)
+
+    articles: list[LexArticle] = []
+    for aid, article_chunks in grouped.items():
+        # Sort chunks by sequence number
+        article_chunks.sort(key=lambda c: c.chunk_seq)
+        # Use title/url from the first chunk that has them
+        title = next((c.title for c in article_chunks if c.title), "")
+        url = next((c.url for c in article_chunks if c.url), None)
+        articles.append(
+            LexArticle(
+                id=aid,
+                title=title,
+                text="\n\n".join(c.chunk_text for c in article_chunks),
+                url=url,
+            )
+        )
+    return articles
 
 
 class LexDBConnector:
@@ -28,61 +83,23 @@ class LexDBConnector:
 
     async def vector_search(
         self, query: str, top_k: int = 5, index_name: str = "small_003"
-    ) -> List[LexArticle]:
+    ) -> list[LexChunk]:
         """Performs a vector search against the knowledge base."""
 
         try:
             vec_req = VectorSearchRequest(query_text=query, top_k=top_k)
             vector_search_result = lexdb_api.vector_search(index_name, vec_req)
             if vector_search_result.results:
-                # Check if this is the E5 chunk-based index
-                if index_name == "article_embeddings_e5":
-                    # Group chunks by article_id
-                    articles_dict = {}
-                    for result in vector_search_result.results:
-                        article_id = int(result.source_article_id)
-                        if article_id not in articles_dict:
-                            articles_dict[article_id] = result.chunk_text
-                        else:
-                            # Append additional chunks to the same article
-                            articles_dict[article_id] += f"\n\n{result.chunk_text}"
-
-                    # Fetch article metadata (title, url)
-                    search_results = lexdb_api.get_articles(
-                        ids=str(list(articles_dict.keys()))
+                return [
+                    LexChunk(
+                        article_id=int(result.source_article_id),
+                        chunk_seq=result.chunk_seq,
+                        chunk_text=result.chunk_text,
+                        title=result.title,
+                        url=result.url,
                     )
-                    if search_results.entries:
-                        return [
-                            LexArticle(
-                                id=result.id,
-                                title=result.title,
-                                text=articles_dict[result.id],  # Use chunks
-                                url=result.url,
-                            )
-                            for result in search_results.entries
-                        ]
-                else:
-                    # For other indices (e.g., OpenAI), use full articles
-                    search_results = lexdb_api.get_articles(
-                        ids=str(
-                            list(
-                                {
-                                    int(result.source_article_id)
-                                    for result in vector_search_result.results
-                                }
-                            )
-                        )
-                    )
-                    if search_results.entries:
-                        return [
-                            LexArticle(
-                                id=result.id,
-                                title=result.title,
-                                text=result.xhtml_md,  # Use full article
-                                url=result.url,
-                            )
-                            for result in search_results.entries
-                        ]
+                    for result in vector_search_result.results
+                ]
 
             return []
         except httpx.RequestError as e:
@@ -90,6 +107,9 @@ class LexDBConnector:
             # TODO: more robust error handling/logging
             return []
 
+    @deprecated(
+        "Orchestrate hybrid search as a separate step instead of within the connector"
+    )
     async def hybrid_search(
         self,
         query: str,
@@ -99,9 +119,8 @@ class LexDBConnector:
         rrf_k: int = 60,
         index_name: str = "article_embeddings_e5",
         methods: list[SearchMethod] | None = None,
-    ) -> List[LexArticle]:
+    ) -> list[LexChunk]:
         """Performs hybrid search using RRF fusion via the lex-db API."""
-
         try:
             hybrid_req = HybridSearchRequest(
                 query_text=query,
@@ -115,76 +134,133 @@ class LexDBConnector:
             hybrid_search_result = lexdb_api.hybrid_search(index_name, hybrid_req)
 
             if hybrid_search_result.results:
-                # Group chunks by article_id to get unique articles
-                articles_dict = {}
-                for result in hybrid_search_result.results:
-                    # Ensure article_id is an int to match get_articles result
-                    article_id = int(result.article_id)
-
-                    if article_id not in articles_dict:
-                        articles_dict[article_id] = result.chunk_text
-                    else:
-                        # Append additional chunks to the same article
-                        articles_dict[article_id] += f"\n\n{result.chunk_text}"
-
-                # Fetch actual article details from the database
-                search_results = lexdb_api.get_articles(
-                    ids=str(list(articles_dict.keys()))
-                )
-
-                if search_results.entries:
-                    return [
-                        LexArticle(
-                            id=result.id,
-                            title=result.title,
-                            text=articles_dict[
-                                result.id
-                            ],  # Use chunks (already collected above)
-                            url=result.url,
-                        )
-                        for result in search_results.entries
-                    ]
+                return [
+                    LexChunk(
+                        article_id=int(result.article_id),
+                        chunk_seq=result.chunk_sequence,
+                        chunk_text=result.chunk_text,
+                        title=result.title,
+                        url=result.url,
+                    )
+                    for result in hybrid_search_result.results
+                ]
 
             return []
         except httpx.RequestError as e:
             print(f"Error connecting to LexDB: {e}")
             return []
 
+    @deprecated(
+        "Orchestrate HyDE search as a separate step instead of within the connector"
+    )
     async def hyde_search(
         self, query: str, top_k: int = 5, index_name: str = "article_embeddings_e5"
-    ) -> List[LexArticle]:
+    ) -> list[LexChunk]:
         """Performs HyDE (Hypothetical Document Embeddings) search against the knowledge base."""
 
         try:
             hyde_req = VectorSearchRequest(query_text=query, top_k=top_k)
             hyde_search_result = lexdb_api.hyde_search(index_name, hyde_req)
             if hyde_search_result.results:
-                # Group chunks by article_id (HyDE only used with E5 embeddings)
-                articles_dict = {}
-                for result in hyde_search_result.results:
-                    article_id = int(result.source_article_id)
-                    if article_id not in articles_dict:
-                        articles_dict[article_id] = result.chunk_text
-                    else:
-                        # Append additional chunks to the same article
-                        articles_dict[article_id] += f"\n\n{result.chunk_text}"
-
-                # Fetch article metadata (title, url)
-                search_results = lexdb_api.get_articles(
-                    ids=str(list(articles_dict.keys()))
-                )
-                if search_results.entries:
-                    return [
-                        LexArticle(
-                            id=result.id,
-                            title=result.title,
-                            text=articles_dict[result.id],  # Use chunks
-                            url=result.url,
-                        )
-                        for result in search_results.entries
-                    ]
+                return [
+                    LexChunk(
+                        article_id=int(result.source_article_id),
+                        chunk_seq=result.chunk_seq,
+                        chunk_text=result.chunk_text,
+                        title=result.title,
+                        url=result.url,
+                    )
+                    for result in hyde_search_result.results
+                ]
 
             return []
+        except httpx.RequestError as e:
+            print(f"Error connecting to LexDB: {e}")
+            return []
+
+    async def batch_vector_search(
+        self,
+        queries: list[str],
+        top_k: int = 5,
+        index_name: str = "article_embeddings_e5",
+    ) -> list[LexChunk]:
+        """Performs batch vector search with multiple query texts.
+
+        Each query is paired with TextType.PASSAGE (for HyDE-style hypothetical
+        documents) and sent as a batch request. Results from all queries are
+        deduplicated by (article_id, chunk_seq).
+        """
+        try:
+            # BatchVectorSearchRequest expects queries as list of [query_text, TextType] pairs
+            query_pairs: list[list[str]] = [
+                [q, TextType.PASSAGE.value] for q in queries
+            ]
+            batch_req = BatchVectorSearchRequest(queries=query_pairs, top_k=top_k)
+            batch_results = lexdb_api.batch_vector_search(index_name, batch_req)
+
+            # batch_results is a list of VectorSearchResults (one per query)
+            # Merge all results, deduplicating by (article_id, chunk_seq)
+            seen: set[tuple[int, int]] = set()
+            chunks: list[LexChunk] = []
+            for search_results in batch_results:
+                if search_results.results:
+                    for result in search_results.results:
+                        article_id = int(result.source_article_id)
+                        chunk_seq = result.chunk_seq
+                        key = (article_id, chunk_seq)
+                        if key not in seen:
+                            seen.add(key)
+                            chunks.append(
+                                LexChunk(
+                                    article_id=article_id,
+                                    chunk_seq=chunk_seq,
+                                    chunk_text=result.chunk_text,
+                                    title=result.title,
+                                    url=result.url,
+                                )
+                            )
+
+            return chunks
+        except httpx.RequestError as e:
+            print(f"Error connecting to LexDB: {e}")
+            return []
+
+    async def batch_fulltext_search(
+        self,
+        queries: list[str],
+        top_k: int = 50,
+        index_name: str = "article_embeddings_e5",
+    ) -> list[LexChunk]:
+        """Performs batch fulltext search with multiple keyword queries.
+
+        Results from all queries are deduplicated by (article_id, chunk_seq).
+        """
+        try:
+            batch_req = BatchFulltextSearchRequest(queries=queries, top_k=top_k)
+            batch_results = lexdb_api.batch_fulltext_search(index_name, batch_req)
+
+            # batch_results is a list of lists of RetrievalResult (one inner list per query)
+            # Deduplicate by (article_id, chunk_sequence)
+            seen: set[tuple[int, int]] = set()
+            chunks: list[LexChunk] = []
+            for query_results in batch_results:
+                for result in query_results:
+                    article_id = int(result.article_id)
+                    chunk_seq = result.chunk_sequence
+                    key = (article_id, chunk_seq)
+                    if key not in seen:
+                        seen.add(key)
+                        chunks.append(
+                            LexChunk(
+                                article_id=article_id,
+                                chunk_seq=chunk_seq,
+                                chunk_text=result.chunk_text,
+                                title=result.title,
+                                url=result.url,
+                            )
+                        )
+
+            return chunks
         except httpx.RequestError as e:
             print(f"Error connecting to LexDB: {e}")
             return []

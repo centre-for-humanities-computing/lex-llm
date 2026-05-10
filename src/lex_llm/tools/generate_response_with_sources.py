@@ -1,7 +1,8 @@
 """Response generation tools with source attribution."""
 
 import re
-from typing import AsyncGenerator, Dict, Any, List, Callable
+from collections.abc import AsyncGenerator, Callable
+from typing import Any
 from ..api.event_emitter import EventEmitter
 from ..api.event_models import Source, ConversationMessage
 from ..api.connectors.lex_db_connector import LexArticle
@@ -10,8 +11,8 @@ from .extract_used_sources_via_llm import extract_used_sources_via_llm
 
 
 def _extract_used_sources_from_system_prompt(
-    conversation_history: List[ConversationMessage],
-) -> List[Dict[str, str]]:
+    conversation_history: list[ConversationMessage],
+) -> list[dict[str, str]]:
     """
     Extract used sources from the system prompt in conversation history.
     Returns a list of dicts with id, title, text, and url.
@@ -64,7 +65,7 @@ def generate_response_with_sources(
     llm_provider: LLMProvider,
     system_prompt: str,
     deferral_message: str,
-) -> Callable[[Dict[str, Any], EventEmitter], AsyncGenerator[str, None]]:
+) -> Callable[[dict[str, Any], EventEmitter], AsyncGenerator[str, None]]:
     """
     Creates a response generation step with source attribution.
 
@@ -78,15 +79,15 @@ def generate_response_with_sources(
     """
 
     async def generate_response_with_sources(
-        context: Dict[str, Any], emitter: EventEmitter
+        context: dict[str, Any], emitter: EventEmitter
     ) -> AsyncGenerator[str, None]:
         """
         Generates a response using retrieved documents, enforces strict factual grounding,
         and emits only the sources actually used in the response.
         """
-        retrieved_docs: List[LexArticle] = context.get("retrieved_docs", [])
+        retrieved_docs: list[LexArticle] = context.get("retrieved_docs", [])
         user_input: str = context.get("user_input", "").strip()
-        conversation_history: List[ConversationMessage] = context.get(
+        conversation_history: list[ConversationMessage] = context.get(
             "conversation_history", []
         )
 
@@ -124,7 +125,7 @@ def generate_response_with_sources(
         dynamic_system_prompt += f"\n\n# Potentielle kilder\n{potentielle_text}"
 
         # Prepare messages with dynamic system prompt (as dicts for LLM provider)
-        messages: List[Dict[str, str]] = []
+        messages: list[dict[str, str]] = []
 
         if not conversation_history:
             # First query: include dynamic system prompt with Potentielle kilder
@@ -171,7 +172,7 @@ def generate_response_with_sources(
                         "id": str(src.id),
                         "title": src.title,
                         "text": src.text,
-                        "url": src.url,
+                        "url": src.url if src.url else "",
                     }
                 )
                 previous_ids.add(str(src.id))
@@ -195,7 +196,7 @@ def generate_response_with_sources(
         # Emit only the newly used sources (not the ones already in Artikler)
         yield emitter.sources(
             [
-                Source(id=src.id, title=src.title, url=src.url)
+                Source(id=src.id, title=src.title, url=src.url if src.url else "")
                 for src in newly_used_sources
             ]
         )
