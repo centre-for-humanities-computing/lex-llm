@@ -626,3 +626,96 @@ def get_advanced_expansion_prompt(
             ),
         },
     ]
+
+
+# ---------------------------------------------------------------------------
+# 13. Intermediate expansion prompt (merged semantic subqueries + keywords)
+# ---------------------------------------------------------------------------
+
+_INTERMEDIATE_EXPANSION_SYSTEM = """Du er en søgeekspert for Lex, en dansk encyklopædi. En simpel søgning med brugerens originale forespørgsel gav ikke tilstrækkeligt relevante resultater. Din opgave er at generere to sæt søgeforespørgsler i ét svar:
+
+1. **semantic_queries**: 2-4 korte, præcise semantiske underforespørgsler der nedbryder eller omformulerer brugerens spørgsmål. Disse skal være korte sætninger eller fraser (ikke hele paragraffer) der dækker forskellige aspekter eller fortolkninger af emnet. De bruges til vektorsøgning.
+
+2. **keyword_queries**: 2-4 søgeforespørgsler med relevante søgeord. Disse bruges til fuldtekstsøgning og skal indeholde termer der ville optræde i en encyklopædiartikel.
+
+# Regler
+- Skriv ALTID på dansk.
+- Semantic queries skal være korte (max 1-2 sætninger) — ikke lange hypotetiske tekster.
+- Keyword queries skal bestå af 1-5 relevante søgeord pr. forespørgsel.
+- Brug synonymer, relaterede begreber og alternative formuleringer.
+- Returner KUN et JSON-objekt med følgende format:
+  {"semantic_queries": ["forespørgsel 1", "forespørgsel 2", ...], "keyword_queries": ["søgeord 1", "søgeord 2", ...]}
+
+Eksempel:
+Brugerforespørgsel: "Hvad var følgerne af Den Sorte Død i Danmark?"
+Output: {"semantic_queries": ["Den Sorte Død konsekvenser Danmark", "pestens indvirkning på dansk middelaldersamfund", "befolkningsfald pest 14. århundrede Skandinavien"], "keyword_queries": ["Den Sorte Død Danmark", "pest middelalder befolkning", "Sortedød konsekvenser 1350", "middelalder epidemi Danmark"]}
+"""
+
+
+def get_intermediate_expansion_prompt(
+    user_input: str,
+    interpretation: str,
+    relevance_feedback: str,
+) -> list[dict[str, str]]:
+    """Build messages for intermediate expansion: short semantic subqueries + keyword queries in one call."""
+    return [
+        {"role": "system", "content": _INTERMEDIATE_EXPANSION_SYSTEM},
+        {
+            "role": "user",
+            "content": (
+                f"Brugerens forespørgsel: {user_input}\n"
+                f"Fortolkning: {interpretation}\n"
+                f"Feedback fra tidligere søgning: {relevance_feedback}\n\n"
+                "Generer semantiske underforespørgsler og søgeord."
+            ),
+        },
+    ]
+
+
+# ---------------------------------------------------------------------------
+# 14. Advanced expansion prompt (merged HyDE passages + broadened keywords)
+# ---------------------------------------------------------------------------
+
+_ADVANCED_EXPANSION_SYSTEM = f"""Du er en søge- og indholdspecialist for Lex, en dansk encyklopædi. To tidligere søgninger har ikke givet tilstrækkeligt relevante resultater. Din opgave er at generere to sæt søgeforespørgsler i ét svar:
+
+1. **passages**: 1-4 hypotetiske encyklopædiafsnit (2-4 sætninger hver) der beskriver hvad en rigtig Lex-artikel om emnet ville indeholde. Disse bruges til semantisk vektorsøgning og behøver ikke være korrekte — de skal blot ligne rigtige encyklopædiafsnit.
+
+2. **keyword_queries**: 2-4 bredere søgeforespørgsler med alternative termer, synonymer og relaterede begreber. Disse bruges til fuldtekstsøgning og skal dække bredere end de tidligere forsøg.
+
+# Lex' domæne
+{_LEX_DOMAIN_DESCRIPTION}
+
+# Regler
+- Skriv ALTID på dansk.
+- Passages skal have en neutral, faktuel og encyklopædisk tone, skrevet i tredjeperson.
+- Keyword queries skal inkludere bredere og mere generelle termer end tidligere forsøg.
+- Brug forslaget til forbedring som vejledning.
+- Returner KUN et JSON-objekt med følgende format:
+  {{"passages": ["afsnit 1", "afsnit 2", ...], "keyword_queries": ["søgeord 1", "søgeord 2", ...]}}
+"""
+
+
+def get_advanced_expansion_prompt(
+    user_input: str,
+    interpretation: str,
+    previous_semantic_queries: list[str],
+    previous_keyword_queries: list[str],
+    refinement_suggestion: str,
+) -> list[dict[str, str]]:
+    """Build messages for advanced expansion: HyDE passages + broadened keywords in one call."""
+    prev_semantic = "\n".join(f"- {q}" for q in previous_semantic_queries)
+    prev_keywords = ", ".join(f'"{q}"' for q in previous_keyword_queries)
+    return [
+        {"role": "system", "content": _ADVANCED_EXPANSION_SYSTEM},
+        {
+            "role": "user",
+            "content": (
+                f"Brugerens forespørgsel: {user_input}\n"
+                f"Fortolkning: {interpretation}\n"
+                f"Tidligere semantiske forespørgsler:\n{prev_semantic}\n"
+                f"Tidligere nøgleordsforespørgsler: [{prev_keywords}]\n"
+                f"Forslag til forbedring: {refinement_suggestion}\n\n"
+                "Generer hypotetiske encyklopædiafsnit og bredere søgeord."
+            ),
+        },
+    ]
