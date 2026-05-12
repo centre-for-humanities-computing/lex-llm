@@ -37,7 +37,7 @@ def expand_query(
         user_input: str = context.get("user_input", "")
         interpretation: str = context.get("query_interpretation", user_input)
 
-        # Emit tool_call event for observability        
+        # Emit tool_call event for observability
         yield emitter.tool_call(
             name="expand_query",
             input_data={
@@ -45,7 +45,7 @@ def expand_query(
                 "query_interpretation": interpretation,
             },
         )
-        
+
         # --- Generate HyDE passages ---
         hyde_messages = get_hyde_prompt(
             user_input=user_input,

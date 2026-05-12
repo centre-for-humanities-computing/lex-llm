@@ -32,6 +32,7 @@ from datetime import date
 # Shared LLM provider for all steps
 _llm = OpenRouterProvider(model="google/gemma-4-26B-A4B-it")
 
+
 def get_workflow(request: WorkflowRunRequest) -> Orchestrator:
     """Configures and returns the Search & Synthesis v1 workflow orchestrator."""
 

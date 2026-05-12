@@ -181,7 +181,10 @@ def search_and_validate(
         # Short semantic subqueries + expanded keyword queries, both from     #
         # a single LLM call informed by stage-1 relevance feedback.           #
         # ------------------------------------------------------------------ #
-        intermediate_semantic_queries, expanded_keyword_queries = await _intermediate_expansion(
+        (
+            intermediate_semantic_queries,
+            expanded_keyword_queries,
+        ) = await _intermediate_expansion(
             llm_provider=llm_provider,
             user_input=user_input,
             interpretation=interpretation,
@@ -495,7 +498,9 @@ async def _advanced_expansion(
     try:
         result = parse_json_response(response)
         passages: list[str] = result.get("passages", [interpretation])
-        keyword_queries: list[str] = result.get("keyword_queries", previous_keyword_queries)
+        keyword_queries: list[str] = result.get(
+            "keyword_queries", previous_keyword_queries
+        )
     except ValueError:
         passages = [interpretation]
         keyword_queries = previous_keyword_queries
