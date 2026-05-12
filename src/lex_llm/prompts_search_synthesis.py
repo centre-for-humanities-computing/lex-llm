@@ -104,7 +104,7 @@ def get_interpret_and_route_prompt(
     """
     user_content = f"Brugerens spørgsmål: {user_input}"
     if conversation_history:
-        user_content += f"\n\nSamtalehistorik (for kontekst):\n{conversation_history}"
+        user_content += f"\n\nSamtalehistorik (for kontekst):\n{conversation_history}" + "\n\nDato: " + _format_date(date.today())
 
     return [
         {"role": "system", "content": _INTERPRET_AND_ROUTE_SYSTEM},
@@ -189,6 +189,7 @@ def get_hyde_prompt(
             "content": (
                 f"Brugerens spørgsmål: {user_input}\n"
                 f"Fortolkning: {interpretation}\n\n"
+                f"Dato: {_format_date(date.today())}\n\n"
                 "Skriv 1-4 korte paragraffer der kunne være relevante for spørgsmålet, hvis de fandtes i Lex."
             ),
         },
@@ -228,6 +229,7 @@ def get_keyword_expansion_prompt(
             "content": (
                 f"Brugerens forespørgsel: {user_input}\n"
                 f"Fortolkning: {interpretation}\n\n"
+                f"Dato: {_format_date(date.today())}\n\n"
                 "Generer relevante søgeforespørgsler."
             ),
         },
@@ -279,6 +281,7 @@ def get_relevance_evaluation_prompt(
                 f"Brugerens forespørgsel: {user_input}\n"
                 f"Fortolkning: {interpretation}\n\n"
                 f"Fundne artikler:\n{retrieved_docs_summary}\n\n"
+                f"Dato: {_format_date(date.today())}\n\n"
                 "Vurder om artiklerne er relevante nok til at besvare forespørgslen."
             ),
         },
@@ -351,6 +354,8 @@ def get_answer_body_prompt(
 
     # Add contextual information
     context_parts: list[str] = []
+    if workflow_description is not None:
+        context_parts.append(f"- Workflow: {workflow_description}")
     if current_date is not None:
         date_str = (
             current_date
@@ -358,8 +363,6 @@ def get_answer_body_prompt(
             else _format_date(current_date)
         )
         context_parts.append(f"- Dato: {date_str}")
-    if workflow_description is not None:
-        context_parts.append(f"- Workflow: {workflow_description}")
 
     if context_parts:
         prompt += "\n# Kontekstuel information\n" + "\n".join(context_parts) + "\n"
@@ -526,94 +529,8 @@ def get_insufficient_context_deferral_prompt(
         {"role": "user", "content": content},
     ]
 
-
 # ---------------------------------------------------------------------------
-# 11. HyDE refinement prompt (for corrective-RAG retries)
-# ---------------------------------------------------------------------------
-
-_HYDE_REFINEMENT_SYSTEM = f"""Du er en forfatter af encyklopædisk indhold for Lex, en dansk encyklopædi. En tidligere hypotetisk encyklopædiparagraf har ikke givet relevante søgeresultater. Din opgave er at skrive en revideret hypotetisk paragraf der dækker en ny, bredere eller mere præcis vinkel.
-
-# Lex' domæne
-{_LEX_DOMAIN_DESCRIPTION}
-
-# Regler
-- Skriv ALTID på dansk.
-- Skriv 1-4 paragraffer (2-4 sætninger) der kunne være relevante for brugerens forespørgsel.
-- Brug en neutral, faktuel og encyklopædisk tone.
-- Brug kun tredjeperson.
-- Udvid eller ændr vinklen — dæk relaterede aspekter af emnet der kunne være relevante.
-- Inkludér alternative termer og synonymer der kunne optræde i en rigtig encyklopædiartikel.
-- Brug forslaget til forbedring som vejledning for hvordan artiklen skal justeres.
-- Returner KUN et JSON-objekt med følgende format:
-  {{"passages": ["paragraf 1", "paragraf 2", ...]}}
-"""
-
-
-def get_hyde_refinement_prompt(
-    user_input: str,
-    interpretation: str,
-    previous_hyde: list[str],
-    refinement_suggestion: str,
-) -> list[dict[str, str]]:
-    """Build messages for refining a HyDE document on corrective-RAG retry."""
-    previous = "\n\n".join(f"- {p}" for p in previous_hyde)
-    return [
-        {"role": "system", "content": _HYDE_REFINEMENT_SYSTEM},
-        {
-            "role": "user",
-            "content": (
-                f"Brugerens forespørgsel: {user_input}\n"
-                f"Fortolkning: {interpretation}\n"
-                f"Tidligere hypotetiske paragraffer:\n{previous}\n\n"
-                f"Forslag til forbedring: {refinement_suggestion}\n\n"
-                "Skriv en revideret hypotetisk encyklopædiartikel der bredere dækker emnet."
-            ),
-        },
-    ]
-
-
-# ---------------------------------------------------------------------------
-# 12. Keyword broadening prompt (for corrective-RAG retries)
-# ---------------------------------------------------------------------------
-
-_KEYWORD_BROADENING_SYSTEM = """Du er en søgeekspert for Lex, en dansk encyklopædi. En tidligere søgning har ikke givet relevante resultater. Din opgave er at generere bredere og mere varierede søgeforespørgsler.
-
-# Regler
-- Generer 2-4 forskellige søgeforespørgsler.
-- Brug bredere termer, synonymer og relaterede begreber.
-- Tænk kreativt om alternative måder at beskrive emnet på.
-- Inkludér både specifikke og generelle termer.
-- Skriv på dansk.
-- Returner KUN et JSON-objekt med følgende format:
-  {"queries": ["forespørgsel 1", "forespørgsel 2", ...]}
-"""
-
-
-def get_keyword_broadening_prompt(
-    user_input: str,
-    interpretation: str,
-    previous_queries: list[str],
-    refinement_suggestion: str,
-) -> list[dict[str, str]]:
-    """Build messages for broadening keyword queries on corrective-RAG retry."""
-    previous = ", ".join(f'"{q}"' for q in previous_queries)
-    return [
-        {"role": "system", "content": _KEYWORD_BROADENING_SYSTEM},
-        {
-            "role": "user",
-            "content": (
-                f"Brugerens spørgsmål: {user_input}\n"
-                f"Fortolkning: {interpretation}\n"
-                f"Tidligere søgeforespørgsler: [{previous}]\n"
-                f"Forslag til forbedring: {refinement_suggestion}\n\n"
-                "Generer bredere og mere varierede søgeforespørgsler."
-            ),
-        },
-    ]
-
-
-# ---------------------------------------------------------------------------
-# 13. Intermediate expansion prompt (merged semantic subqueries + keywords)
+# 11. Intermediate expansion prompt (merged semantic subqueries + keywords)
 # ---------------------------------------------------------------------------
 
 _INTERMEDIATE_EXPANSION_SYSTEM = """Du er en søgeekspert for Lex, en dansk encyklopædi. En simpel søgning med brugerens originale forespørgsel gav ikke tilstrækkeligt relevante resultater. Din opgave er at generere to sæt søgeforespørgsler i ét svar:
@@ -657,7 +574,7 @@ def get_intermediate_expansion_prompt(
 
 
 # ---------------------------------------------------------------------------
-# 14. Advanced expansion prompt (merged HyDE passages + broadened keywords)
+# 12. Advanced expansion prompt (merged HyDE passages + broadened keywords)
 # ---------------------------------------------------------------------------
 
 _ADVANCED_EXPANSION_SYSTEM = f"""Du er en søge- og indholdspecialist for Lex, en dansk encyklopædi. To tidligere søgninger har ikke givet tilstrækkeligt relevante resultater. Din opgave er at generere to sæt søgeforespørgsler i ét svar:
