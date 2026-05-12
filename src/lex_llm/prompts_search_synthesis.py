@@ -104,7 +104,11 @@ def get_interpret_and_route_prompt(
     """
     user_content = f"Brugerens spørgsmål: {user_input}"
     if conversation_history:
-        user_content += f"\n\nSamtalehistorik (for kontekst):\n{conversation_history}" + "\n\nDato: " + _format_date(date.today())
+        user_content += (
+            f"\n\nSamtalehistorik (for kontekst):\n{conversation_history}"
+            + "\n\nDato: "
+            + _format_date(date.today())
+        )
 
     return [
         {"role": "system", "content": _INTERPRET_AND_ROUTE_SYSTEM},
@@ -528,6 +532,7 @@ def get_insufficient_context_deferral_prompt(
         {"role": "system", "content": _INSUFFICIENT_CONTEXT_DEFERRAL_SYSTEM},
         {"role": "user", "content": content},
     ]
+
 
 # ---------------------------------------------------------------------------
 # 11. Intermediate expansion prompt (merged semantic subqueries + keywords)
