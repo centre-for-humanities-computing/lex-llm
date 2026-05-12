@@ -72,7 +72,7 @@ class EventEmitter:
     def tool_call(self, name: str, input_data: Dict[str, Any]) -> str:
         data = ToolCallData(name=name, input=input_data)
         return self.emit("tool_call", data)
-    
+
     def tool_result(self, name: str, result_data: Dict[str, Any]) -> str:
         data = ToolCallData(name=name, input=result_data)
         return self.emit("tool_result", data)

@@ -33,6 +33,7 @@ from datetime import date
 # Shared LLM provider for all steps
 _llm = ScalewayProvider(model="gemma-4-26b-a4b-it")
 
+
 def get_workflow(request: WorkflowRunRequest) -> Orchestrator:
     """Configures and returns the Search & Synthesis v1 workflow orchestrator."""
 
