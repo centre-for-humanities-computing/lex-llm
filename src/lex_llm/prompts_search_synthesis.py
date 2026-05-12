@@ -534,6 +534,7 @@ def get_insufficient_context_deferral_prompt(
         {"role": "user", "content": content},
     ]
 
+
 # ---------------------------------------------------------------------------
 # 11. Intermediate expansion prompt (merged semantic subqueries + keywords)
 # ---------------------------------------------------------------------------
