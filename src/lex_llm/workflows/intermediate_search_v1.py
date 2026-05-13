@@ -19,18 +19,18 @@ _llm = CortecsProvider(model="gemma-4-26b-a4b-it")
 
 
 def get_workflow(request: WorkflowRunRequest) -> Orchestrator:
-    """Configures and returns the Search v1 workflow orchestrator."""
+    """Configures and returns the Intermediate Search v1 workflow orchestrator."""
 
     return Orchestrator(
         request=request,
         steps=[
             search_with_expansion(
                 llm_provider=_llm,
-                index_name="e5_small",
+                index_name="article_embeddings_e5",
                 top_k=100,
                 top_k_semantic=100,
                 top_k_fts=100,
-                rrf_k=150,
+                rrf_k=60,
             ),
         ],
         context={"conversation_history": request.conversation_history},
@@ -39,8 +39,8 @@ def get_workflow(request: WorkflowRunRequest) -> Orchestrator:
 
 def get_metadata() -> dict:
     return {
-        "workflow_id": "search_v1",
-        "name": "Search v1",
+        "workflow_id": "intermediate_search_v1",
+        "name": "Intermediate Search v1",
         "description": (
             "A search-only workflow that returns a list of matching articles "
             "without summarization or answer generation. Uses query expansion "
