@@ -527,6 +527,12 @@ components:
           - type: string
           - type: 'null'
           title: Title
+        changed_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Changed At
       type: object
       required:
       - id
@@ -663,6 +669,12 @@ components:
           - type: string
           - type: 'null'
           title: Title
+        changed_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Changed At
       type: object
       required:
       - id_in_index

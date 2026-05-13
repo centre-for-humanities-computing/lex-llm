@@ -143,7 +143,7 @@ def _compose_final_response(
         sections.append(f"## Fortolkning\n{interpretation}")
 
     if lead_paragraph:
-        sections.append(f"## Resumé\n{lead_paragraph}")
+        sections.append(f"## Manchet\n{lead_paragraph}")
 
     if answer_body:
         sections.append(f"## Svar\n{answer_body}")
