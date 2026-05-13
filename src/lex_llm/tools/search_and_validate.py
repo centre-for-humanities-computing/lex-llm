@@ -11,6 +11,8 @@ Each stage evaluates relevance before escalating to the next.
 from collections.abc import AsyncGenerator, Callable
 from typing import Any
 
+from lex_db_api.models.text_type import TextType
+
 from ..api.event_emitter import EventEmitter
 from ..api.connectors.openai_provider import LLMProvider
 from ..api.connectors.lex_db_connector import (
@@ -42,21 +44,19 @@ def _format_chunks_summary(chunks: list[LexChunk], max_chars: int = 500) -> str:
         lines.append(f"ID: {doc.id} | Titel: {doc.title}\nUddrag: {excerpt}")
     return "\n\n".join(lines)
 
-
 def _reciprocal_rank_fusion(
-    semantic_results: list[LexChunk],
-    fts_results: list[LexChunk],
+    *result_lists: list[LexChunk],
     k: int = 60,
 ) -> list[LexChunk]:
-    """Merge semantic and full-text search results using Reciprocal Rank Fusion.
+    """Merge multiple ranked result lists using Reciprocal Rank Fusion.
 
     Fusion operates at the chunk level. Each unique (article_id, chunk_seq)
-    pair gets an RRF score. If the same chunk appears in both result sets,
+    pair gets an RRF score. If the same chunk appears in multiple result lists,
     its scores are summed.
 
     Args:
-        semantic_results: Chunks from vector/semantic search, ordered by relevance.
-        fts_results: Chunks from full-text search, ordered by relevance.
+        *result_lists: Any number of ranked LexChunk lists (e.g. per-query semantic
+            results, per-query FTS results, etc.).
         k: RRF constant (default 60). Higher k dampens the effect of individual ranks.
 
     Returns:
@@ -65,17 +65,11 @@ def _reciprocal_rank_fusion(
     rrf_scores: dict[tuple[int, int], float] = {}
     chunk_map: dict[tuple[int, int], LexChunk] = {}
 
-    # Score semantic results
-    for rank, chunk in enumerate(semantic_results):
-        key = (chunk.article_id, chunk.chunk_seq)
-        rrf_scores[key] = rrf_scores.get(key, 0.0) + 1.0 / (k + rank + 1)
-        chunk_map[key] = chunk
-
-    # Score FTS results
-    for rank, chunk in enumerate(fts_results):
-        key = (chunk.article_id, chunk.chunk_seq)
-        rrf_scores[key] = rrf_scores.get(key, 0.0) + 1.0 / (k + rank + 1)
-        chunk_map[key] = chunk
+    for results in result_lists:
+        for rank, chunk in enumerate(results):
+            key = (chunk.article_id, chunk.chunk_seq)
+            rrf_scores[key] = rrf_scores.get(key, 0.0) + 1.0 / (k + rank + 1)
+            chunk_map[key] = chunk
 
     # Sort by RRF score descending
     sorted_keys = sorted(rrf_scores, key=lambda x: rrf_scores[x], reverse=True)
@@ -135,7 +129,7 @@ def search_and_validate(
         )
 
         semantic_chunks = await connector.batch_vector_search(
-            queries=[user_input],
+            queries=[(user_input, TextType.QUERY)],
             top_k=top_k_semantic,
             index_name=index_name,
         )
@@ -145,30 +139,39 @@ def search_and_validate(
             index_name=index_name,
         )
         fused_chunks = _reciprocal_rank_fusion(
-            semantic_results=semantic_chunks,
-            fts_results=fts_chunks,
+            *semantic_chunks, *fts_chunks,
             k=rrf_k,
         )[:top_k]
 
         yield emitter.tool_result(
             name="simple_retrieval",
             result_data=_build_retrieval_result(
-                semantic_chunks, fts_chunks, fused_chunks, rrf_k
+                [c for qs in semantic_chunks for c in qs],
+                [c for qs in fts_chunks for c in qs],
+                fused_chunks,
+                rrf_k,
             ),
         )
 
         if fused_chunks:
             best_chunks = fused_chunks
 
-        is_relevant, reason, refinement, eval_events = await _run_relevance_evaluation(
+        is_relevant: bool = False
+        reason: str = ""
+        refinement: str = ""
+        async for result in _run_relevance_evaluation(
             llm_provider=llm_provider,
             user_input=user_input,
             interpretation=interpretation,
             fused_chunks=fused_chunks,
             emitter=emitter,
-        )
-        for event in eval_events:
-            yield event
+        ):
+            if isinstance(result, dict):
+                is_relevant = result["is_relevant"]
+                reason = result["reason"]
+                refinement = result["suggested_query_refinement"]
+            else:
+                yield result
 
         if is_relevant:
             _set_context_success(context, fused_chunks)
@@ -201,7 +204,7 @@ def search_and_validate(
         )
 
         semantic_chunks = await connector.batch_vector_search(
-            queries=intermediate_semantic_queries,
+            queries=[(q, TextType.QUERY) for q in intermediate_semantic_queries],
             top_k=top_k_semantic,
             index_name=index_name,
         )
@@ -211,30 +214,39 @@ def search_and_validate(
             index_name=index_name,
         )
         fused_chunks = _reciprocal_rank_fusion(
-            semantic_results=semantic_chunks,
-            fts_results=fts_chunks,
+            *semantic_chunks, *fts_chunks,
             k=rrf_k,
         )[:top_k]
 
         yield emitter.tool_result(
             name="intermediate_retrieval",
             result_data=_build_retrieval_result(
-                semantic_chunks, fts_chunks, fused_chunks, rrf_k
+                [c for qs in semantic_chunks for c in qs],
+                [c for qs in fts_chunks for c in qs],
+                fused_chunks,
+                rrf_k,
             ),
         )
 
         if len(fused_chunks) > len(best_chunks):
             best_chunks = fused_chunks
 
-        is_relevant, reason, refinement, eval_events = await _run_relevance_evaluation(
+        is_relevant: bool = False
+        reason: str = ""
+        refinement: str = ""
+        async for result in _run_relevance_evaluation(
             llm_provider=llm_provider,
             user_input=user_input,
             interpretation=interpretation,
             fused_chunks=fused_chunks,
             emitter=emitter,
-        )
-        for event in eval_events:
-            yield event
+        ):
+            if isinstance(result, dict):
+                is_relevant = result["is_relevant"]
+                reason = result["reason"]
+                refinement = result["suggested_query_refinement"]
+            else:
+                yield result
 
         if is_relevant:
             _set_context_success(context, fused_chunks)
@@ -266,7 +278,7 @@ def search_and_validate(
         )
 
         semantic_chunks = await connector.batch_vector_search(
-            queries=hyde_passages,
+            queries=[(p, TextType.PASSAGE) for p in hyde_passages],
             top_k=top_k_semantic,
             index_name=index_name,
         )
@@ -276,30 +288,39 @@ def search_and_validate(
             index_name=index_name,
         )
         fused_chunks = _reciprocal_rank_fusion(
-            semantic_results=semantic_chunks,
-            fts_results=fts_chunks,
+            *semantic_chunks, *fts_chunks,
             k=rrf_k,
         )[:top_k]
 
         yield emitter.tool_result(
             name="advanced_retrieval",
             result_data=_build_retrieval_result(
-                semantic_chunks, fts_chunks, fused_chunks, rrf_k
+                [c for qs in semantic_chunks for c in qs],
+                [c for qs in fts_chunks for c in qs],
+                fused_chunks,
+                rrf_k,
             ),
         )
 
         if len(fused_chunks) > len(best_chunks):
             best_chunks = fused_chunks
 
-        is_relevant, reason, refinement, eval_events = await _run_relevance_evaluation(
+        is_relevant: bool = False
+        reason: str = ""
+        refinement: str = ""
+        async for result in _run_relevance_evaluation(
             llm_provider=llm_provider,
             user_input=user_input,
             interpretation=interpretation,
             fused_chunks=fused_chunks,
             emitter=emitter,
-        )
-        for event in eval_events:
-            yield event
+        ):
+            if isinstance(result, dict):
+                is_relevant = result["is_relevant"]
+                reason = result["reason"]
+                refinement = result["suggested_query_refinement"]
+            else:
+                yield result
 
         if is_relevant:
             _set_context_success(context, fused_chunks)
@@ -378,31 +399,31 @@ async def _run_relevance_evaluation(
     interpretation: str,
     fused_chunks: list[LexChunk],
     emitter: EventEmitter,
-) -> tuple[bool, str, str, list[str]]:
-    """Call the LLM to evaluate relevance and return (is_relevant, reason, refinement, events).
+) -> AsyncGenerator[dict[str, Any] | str, None]:
+    """Call the LLM to evaluate relevance and yield events in real-time.
 
-    The returned ``events`` list contains pre-serialised SSE strings for the
-    ``relevance_evaluation`` tool_call and tool_result, ready to be yielded by
-    the outer async generator.
+    Yields SSE event strings for the ``relevance_evaluation`` tool_call (before
+    the LLM call) and tool_result (after), so callers see the tool call event
+    immediately. The final yield is the ``result_data`` dict containing
+    ``is_relevant``, ``reason``, and ``suggested_query_refinement``.
 
-    Returns (False, "Ingen søgeresultater fundet", "", []) when there are no
-    chunks to avoid infinite escalation.
+    Yields a result dict with ``is_relevant=False`` when there are no chunks
+    to avoid infinite escalation.
     """
     if not fused_chunks:
-        return False, "Ingen søgeresultater fundet", "", []
+        yield {"is_relevant": False, "reason": "Ingen søgeresultater fundet", "suggested_query_refinement": ""}
+        return
 
     docs_summary = _format_chunks_summary(fused_chunks)
 
-    events: list[str] = [
-        emitter.tool_call(
-            name="relevance_evaluation",
-            input_data={
-                "user_input": user_input,
-                "interpretation": interpretation,
-                "retrieved_docs_summary": docs_summary,
-            },
-        )
-    ]
+    yield emitter.tool_call(
+        name="relevance_evaluation",
+        input_data={
+            "user_input": user_input,
+            "interpretation": interpretation,
+            "retrieved_docs_summary": docs_summary,
+        },
+    )
 
     eval_messages = get_relevance_evaluation_prompt(
         user_input=user_input,
@@ -426,18 +447,18 @@ async def _run_relevance_evaluation(
         reason = ""
         refinement = ""
 
-    events.append(
-        emitter.tool_result(
-            name="relevance_evaluation",
-            result_data={
-                "is_relevant": is_relevant,
-                "reason": reason,
-                "suggested_query_refinement": refinement,
-            },
-        )
+    result_data = {
+        "is_relevant": is_relevant,
+        "reason": reason,
+        "suggested_query_refinement": refinement,
+    }
+
+    yield emitter.tool_result(
+        name="relevance_evaluation",
+        result_data=result_data,
     )
 
-    return is_relevant, reason, refinement, events
+    yield result_data
 
 
 async def _intermediate_expansion(
