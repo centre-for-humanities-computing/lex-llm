@@ -43,8 +43,8 @@ def get_workflow(request: WorkflowRunRequest) -> Orchestrator:
             generate_deferral(llm_provider=_llm),
             search_and_validate(
                 llm_provider=_llm,
-                index_name="e5_small",
-                top_k=10,
+                index_name="article_embeddings_e5",
+                top_k=25,
                 top_k_semantic=50,
                 top_k_fts=50,
                 rrf_k=60,
