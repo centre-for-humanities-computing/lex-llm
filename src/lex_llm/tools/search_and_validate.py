@@ -29,7 +29,7 @@ from ..prompts_search_synthesis import (
 from .llm_json import parse_json_response
 
 
-def _format_chunks_summary(chunks: list[LexChunk], max_chars: int = 500) -> str:
+def _format_docs(chunks: list[LexChunk]) -> str:
     """Format retrieved chunks as a summary for the LLM.
 
     Chunks are grouped by article_id and each article gets its ID, title,
@@ -38,10 +38,7 @@ def _format_chunks_summary(chunks: list[LexChunk], max_chars: int = 500) -> str:
     articles = group_chunks_to_articles(chunks)
     lines = []
     for doc in articles:
-        excerpt = (
-            doc.text[:max_chars] + "..." if len(doc.text) > max_chars else doc.text
-        )
-        lines.append(f"ID: {doc.id} | Titel: {doc.title}\nUddrag: {excerpt}")
+        lines.append(f"*ID:* {doc.id} | *Titel:* {doc.title}\n*Tekst:* {doc.text}\n")
     return "\n\n".join(lines)
 
 def _reciprocal_rank_fusion(
@@ -414,21 +411,21 @@ async def _run_relevance_evaluation(
         yield {"is_relevant": False, "reason": "Ingen søgeresultater fundet", "suggested_query_refinement": ""}
         return
 
-    docs_summary = _format_chunks_summary(fused_chunks)
+    docs = _format_docs(fused_chunks)
 
     yield emitter.tool_call(
         name="relevance_evaluation",
         input_data={
             "user_input": user_input,
             "interpretation": interpretation,
-            "retrieved_docs_summary": docs_summary,
+            "retrieved_docs": docs,
         },
     )
 
     eval_messages = get_relevance_evaluation_prompt(
         user_input=user_input,
         interpretation=interpretation,
-        retrieved_docs_summary=docs_summary,
+        retrieved_docs=docs,
     )
     llm_eval_messages = [
         ConversationMessage(role=m["role"], content=m["content"])  # type: ignore

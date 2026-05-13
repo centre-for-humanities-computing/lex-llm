@@ -267,15 +267,14 @@ Eksempel:
 def get_relevance_evaluation_prompt(
     user_input: str,
     interpretation: str,
-    retrieved_docs_summary: str,
+    retrieved_docs: str,
 ) -> list[dict[str, str]]:
     """Build messages for evaluating search result relevance.
 
     Args:
         user_input: The original user query.
         interpretation: The interpreted query.
-        retrieved_docs_summary: A formatted summary of the retrieved documents
-            (titles and short excerpts).
+        retrieved_docs: A list of the retrieved documents.
     """
     return [
         {"role": "system", "content": _RELEVANCE_EVALUATION_SYSTEM},
@@ -284,7 +283,7 @@ def get_relevance_evaluation_prompt(
             "content": (
                 f"Brugerens forespørgsel: {user_input}\n"
                 f"Fortolkning: {interpretation}\n\n"
-                f"Fundne artikler:\n{retrieved_docs_summary}\n\n"
+                f"Fundne artikler:\n{retrieved_docs}\n\n"
                 f"Aktuel dato: {_format_date(date.today())}\n\n"
                 "Vurder om artiklerne er relevante nok til at besvare forespørgslen."
             ),
@@ -309,6 +308,7 @@ _ANSWER_BODY_SYSTEM = """Du er en encyklopædisk forfatter for Lex, en dansk enc
 - Tal ikke ned til læseren.
 - Bevar en neutral og afmålt tone.
 - Minimér tekstuel kompleksitet, akademisk register og unødvendigt jargon.
+- Sigt efter et niveau, der er forståeligt for en almindelig læser uden videregående uddannelse.
 - Placér historiske fakta i deres geografiske og kronologiske kontekst.
 - Brug KUN eksempler fra kildematerialet.
 - Undgå normative eller emotionelle vurderinger.
