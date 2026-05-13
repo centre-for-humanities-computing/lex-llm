@@ -20,6 +20,7 @@ class Source(BaseModel):
     id: Union[str, int]
     title: str
     url: str | None = None
+    highlight: str | None = None
 
 
 class DefinitionItem(BaseModel):

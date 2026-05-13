@@ -127,6 +127,6 @@ def get_metadata() -> dict:
                 "outputs": ["definitions", "used_sources", "final_response"],
             },
         ],
-        "author": "Zafar Hussain",
+        "author": "Simon Enni",
         "version": "1.0.0",
     }
