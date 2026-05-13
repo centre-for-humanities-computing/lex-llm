@@ -180,87 +180,80 @@ class LexDBConnector:
 
     async def batch_vector_search(
         self,
-        queries: list[str],
+        queries: list[tuple[str, TextType]],
         top_k: int = 5,
         index_name: str = "article_embeddings_e5",
-    ) -> list[LexChunk]:
+    ) -> list[list[LexChunk]]:
         """Performs batch vector search with multiple query texts.
 
-        Each query is paired with TextType.PASSAGE (for HyDE-style hypothetical
-        documents) and sent as a batch request. Results from all queries are
-        deduplicated by (article_id, chunk_seq).
+        Each query is a (query_text, TextType) tuple, allowing callers to
+        choose the appropriate text type per query (e.g. TextType.QUERY for
+        short queries, TextType.PASSAGE for HyDE-style hypothetical documents).
+        Results are returned as a list of lists — one inner list per query —
+        preserving per-query ranking for downstream RRF fusion.
         """
         try:
             # BatchVectorSearchRequest expects queries as list of [query_text, TextType] pairs
             query_pairs: list[list[str]] = [
-                [q, TextType.PASSAGE.value] for q in queries
+                [text, tt.value] for text, tt in queries
             ]
             batch_req = BatchVectorSearchRequest(queries=query_pairs, top_k=top_k)
             batch_results = lexdb_api.batch_vector_search(index_name, batch_req)
 
             # batch_results is a list of VectorSearchResults (one per query)
-            # Merge all results, deduplicating by (article_id, chunk_seq)
-            seen: set[tuple[int, int]] = set()
-            chunks: list[LexChunk] = []
+            per_query_chunks: list[list[LexChunk]] = []
             for search_results in batch_results:
+                query_chunks: list[LexChunk] = []
                 if search_results.results:
                     for result in search_results.results:
-                        article_id = int(result.source_article_id)
-                        chunk_seq = result.chunk_seq
-                        key = (article_id, chunk_seq)
-                        if key not in seen:
-                            seen.add(key)
-                            chunks.append(
-                                LexChunk(
-                                    article_id=article_id,
-                                    chunk_seq=chunk_seq,
-                                    chunk_text=result.chunk_text,
-                                    title=result.title,
-                                    url=result.url,
-                                )
+                        query_chunks.append(
+                            LexChunk(
+                                article_id=int(result.source_article_id),
+                                chunk_seq=result.chunk_seq,
+                                chunk_text=result.chunk_text,
+                                title=result.title,
+                                url=result.url,
                             )
+                        )
+                per_query_chunks.append(query_chunks)
 
-            return chunks
+            return per_query_chunks
         except httpx.RequestError as e:
             print(f"Error connecting to LexDB: {e}")
-            return []
+            return [[] for _ in queries]
 
     async def batch_fulltext_search(
         self,
         queries: list[str],
         top_k: int = 50,
         index_name: str = "article_embeddings_e5",
-    ) -> list[LexChunk]:
+    ) -> list[list[LexChunk]]:
         """Performs batch fulltext search with multiple keyword queries.
 
-        Results from all queries are deduplicated by (article_id, chunk_seq).
+        Results are returned as a list of lists — one inner list per query —
+        preserving per-query ranking for downstream RRF fusion.
         """
         try:
             batch_req = BatchFulltextSearchRequest(queries=queries, top_k=top_k)
             batch_results = lexdb_api.batch_fulltext_search(index_name, batch_req)
 
             # batch_results is a list of lists of RetrievalResult (one inner list per query)
-            # Deduplicate by (article_id, chunk_sequence)
-            seen: set[tuple[int, int]] = set()
-            chunks: list[LexChunk] = []
+            per_query_chunks: list[list[LexChunk]] = []
             for query_results in batch_results:
+                query_chunks: list[LexChunk] = []
                 for result in query_results:
-                    article_id = int(result.article_id)
-                    chunk_seq = result.chunk_sequence
-                    key = (article_id, chunk_seq)
-                    if key not in seen:
-                        seen.add(key)
-                        chunks.append(
-                            LexChunk(
-                                article_id=article_id,
-                                chunk_seq=chunk_seq,
-                                chunk_text=result.chunk_text,
-                                title=result.title,
-                                url=result.url,
-                            )
+                    query_chunks.append(
+                        LexChunk(
+                            article_id=int(result.article_id),
+                            chunk_seq=result.chunk_sequence,
+                            chunk_text=result.chunk_text,
+                            title=result.title,
+                            url=result.url,
                         )
+                    )
+                per_query_chunks.append(query_chunks)
 
-            return chunks
+            return per_query_chunks
         except httpx.RequestError as e:
             print(f"Error connecting to LexDB: {e}")
-            return []
+            return [[] for _ in queries]

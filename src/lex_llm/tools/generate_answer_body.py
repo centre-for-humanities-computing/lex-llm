@@ -99,7 +99,7 @@ def generate_answer_body(
             )
             partial_findings = None
             if retrieved_docs:
-                partial_findings = ", ".join(doc.title for doc in retrieved_docs[:3])
+                partial_findings = ", ".join(doc.title for doc in retrieved_docs)
 
             deferral_messages = get_insufficient_context_deferral_prompt(
                 user_input=user_input,

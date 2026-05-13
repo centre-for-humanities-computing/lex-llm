@@ -106,7 +106,7 @@ def get_interpret_and_route_prompt(
     if conversation_history:
         user_content += (
             f"\n\nSamtalehistorik (for kontekst):\n{conversation_history}"
-            + "\n\nDato: "
+            + "\n\nAktuel dato: "
             + _format_date(date.today())
         )
 
@@ -193,7 +193,7 @@ def get_hyde_prompt(
             "content": (
                 f"Brugerens spørgsmål: {user_input}\n"
                 f"Fortolkning: {interpretation}\n\n"
-                f"Dato: {_format_date(date.today())}\n\n"
+                f"Aktuel dato: {_format_date(date.today())}\n\n"
                 "Skriv 1-4 korte paragraffer der kunne være relevante for spørgsmålet, hvis de fandtes i Lex."
             ),
         },
@@ -233,7 +233,7 @@ def get_keyword_expansion_prompt(
             "content": (
                 f"Brugerens forespørgsel: {user_input}\n"
                 f"Fortolkning: {interpretation}\n\n"
-                f"Dato: {_format_date(date.today())}\n\n"
+                f"Aktuel dato: {_format_date(date.today())}\n\n"
                 "Generer relevante søgeforespørgsler."
             ),
         },
@@ -285,7 +285,7 @@ def get_relevance_evaluation_prompt(
                 f"Brugerens forespørgsel: {user_input}\n"
                 f"Fortolkning: {interpretation}\n\n"
                 f"Fundne artikler:\n{retrieved_docs_summary}\n\n"
-                f"Dato: {_format_date(date.today())}\n\n"
+                f"Aktuel dato: {_format_date(date.today())}\n\n"
                 "Vurder om artiklerne er relevante nok til at besvare forespørgslen."
             ),
         },
@@ -366,7 +366,7 @@ def get_answer_body_prompt(
             if isinstance(current_date, str)
             else _format_date(current_date)
         )
-        context_parts.append(f"- Dato: {date_str}")
+        context_parts.append(f"- Aktuel dato: {date_str}")
 
     if context_parts:
         prompt += "\n# Kontekstuel information\n" + "\n".join(context_parts) + "\n"

@@ -1,11 +1,11 @@
 import uuid
 import asyncio
-from typing import Callable, Dict, Any, AsyncGenerator, List, Union
+from typing import Callable, Any, AsyncGenerator
 from .event_emitter import EventEmitter
 from .event_models import ConversationMessage, WorkflowRunRequest, WorkflowStepData
 
 StepFunc = Callable[
-    [Dict[str, Any], EventEmitter],
+    [dict[str, Any], EventEmitter],
     AsyncGenerator[str | None, None],
 ]
 
@@ -19,23 +19,22 @@ class ParallelStep:
     error is propagated.
     """
 
-    def __init__(self, steps: List[StepFunc], label: str = "parallel"):
+    def __init__(self, steps: list[StepFunc], label: str = "parallel"):
         self.steps = steps
         self.__name__ = label
-
 
 class Orchestrator:
     def __init__(
         self,
         request: WorkflowRunRequest,
-        steps: List[Union[StepFunc, ParallelStep]],
-        context: Dict[str, Any] = {},
+        steps: list[StepFunc | ParallelStep],
+        context: dict[str, Any] = {},
     ):
         self.request = request
         self.steps = steps
         self.emitter = EventEmitter(conversation_id=request.conversation_id)
         # A simple dictionary to pass state between steps
-        self.context: Dict[str, Any] = {**context, **request.model_dump()}
+        self.context: dict[str, Any] = {**context, **request.model_dump()}
 
     async def _run_step(
         self, step_func: StepFunc, step_id: str, step_name: str
@@ -122,28 +121,14 @@ class Orchestrator:
                     break
 
                 if isinstance(step, ParallelStep):
-                    async for event in self._run_parallel_step(step):
-                        yield event
+                    async for p_event in self._run_parallel_step(step):
+                        yield p_event
                 else:
                     step_id = str(uuid.uuid4())
                     step_name = step.__name__
 
-                    yield self.emitter.workflow_step(
-                        WorkflowStepData(
-                            step_id=step_id, name=step_name, status="started"
-                        )
-                    )
-
-                    # The actual execution of the step
-                    async for step_event in step(self.context, self.emitter):
-                        if step_event:
-                            yield step_event
-
-                    yield self.emitter.workflow_step(
-                        WorkflowStepData(
-                            step_id=step_id, name=step_name, status="completed"
-                        )
-                    )
+                    async for event in self._run_step(step, step_id, step_name):
+                        yield event
 
         except Exception as e:
             # Emit a detailed error and stop execution

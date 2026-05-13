@@ -38,7 +38,7 @@ def interpret_and_route(
             for msg in conversation_history:
                 msg_dict = dict(msg) if not isinstance(msg, dict) else msg
                 if msg_dict.get("role") in ("user", "assistant"):
-                    parts.append(f"{msg_dict['role']}: {msg_dict['content']}")
+                    parts.append(f"{msg_dict['role']}: {msg_dict['content'][:100]}")
             if parts:
                 history_summary = "\n".join(parts)
 
@@ -72,9 +72,5 @@ def interpret_and_route(
 
         # Emit the interpretation as a stream event
         yield emitter.interpretation_chunk(interpretation)
-
-        # If out of scope, signal early termination
-        if not in_scope:
-            context["_workflow_done"] = True
 
     return _interpret_and_route
