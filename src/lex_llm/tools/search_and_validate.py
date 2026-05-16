@@ -41,6 +41,7 @@ def _format_docs(chunks: list[LexChunk]) -> str:
         lines.append(f"*ID:* {doc.id} | *Titel:* {doc.title}\n*Tekst:* {doc.text}\n")
     return "\n\n".join(lines)
 
+
 def _reciprocal_rank_fusion(
     *result_lists: list[LexChunk],
     k: int = 60,
@@ -136,7 +137,8 @@ def search_and_validate(
             index_name=index_name,
         )
         fused_chunks = _reciprocal_rank_fusion(
-            *semantic_chunks, *fts_chunks,
+            *semantic_chunks,
+            *fts_chunks,
             k=rrf_k,
         )[:top_k]
 
@@ -211,7 +213,8 @@ def search_and_validate(
             index_name=index_name,
         )
         fused_chunks = _reciprocal_rank_fusion(
-            *semantic_chunks, *fts_chunks,
+            *semantic_chunks,
+            *fts_chunks,
             k=rrf_k,
         )[:top_k]
 
@@ -228,9 +231,6 @@ def search_and_validate(
         if len(fused_chunks) > len(best_chunks):
             best_chunks = fused_chunks
 
-        is_relevant: bool = False
-        reason: str = ""
-        refinement: str = ""
         async for result in _run_relevance_evaluation(
             llm_provider=llm_provider,
             user_input=user_input,
@@ -285,7 +285,8 @@ def search_and_validate(
             index_name=index_name,
         )
         fused_chunks = _reciprocal_rank_fusion(
-            *semantic_chunks, *fts_chunks,
+            *semantic_chunks,
+            *fts_chunks,
             k=rrf_k,
         )[:top_k]
 
@@ -302,9 +303,6 @@ def search_and_validate(
         if len(fused_chunks) > len(best_chunks):
             best_chunks = fused_chunks
 
-        is_relevant: bool = False
-        reason: str = ""
-        refinement: str = ""
         async for result in _run_relevance_evaluation(
             llm_provider=llm_provider,
             user_input=user_input,
@@ -408,7 +406,11 @@ async def _run_relevance_evaluation(
     to avoid infinite escalation.
     """
     if not fused_chunks:
-        yield {"is_relevant": False, "reason": "Ingen søgeresultater fundet", "suggested_query_refinement": ""}
+        yield {
+            "is_relevant": False,
+            "reason": "Ingen søgeresultater fundet",
+            "suggested_query_refinement": "",
+        }
         return
 
     docs = _format_docs(fused_chunks)

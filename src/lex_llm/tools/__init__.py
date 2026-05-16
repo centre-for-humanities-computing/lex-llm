@@ -4,7 +4,6 @@ from .search_knowledge_base import search_knowledge_base
 from .generate_response_with_sources import generate_response_with_sources
 from .interpret_and_route import interpret_and_route
 from .generate_deferral import generate_deferral
-from .expand_query import expand_query
 from .search_and_validate import search_and_validate
 from .generate_answer_body import generate_answer_body
 from .generate_lead_paragraph import generate_lead_paragraph

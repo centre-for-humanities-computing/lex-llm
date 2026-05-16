@@ -194,9 +194,7 @@ class LexDBConnector:
         """
         try:
             # BatchVectorSearchRequest expects queries as list of [query_text, TextType] pairs
-            query_pairs: list[list[str]] = [
-                [text, tt.value] for text, tt in queries
-            ]
+            query_pairs: list[list[str]] = [[text, tt.value] for text, tt in queries]
             batch_req = BatchVectorSearchRequest(queries=query_pairs, top_k=top_k)
             batch_results = lexdb_api.batch_vector_search(index_name, batch_req)
 
