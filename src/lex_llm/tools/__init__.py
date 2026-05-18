@@ -15,7 +15,6 @@ __all__ = [
     "generate_response_with_sources",
     "interpret_and_route",
     "generate_deferral",
-    "expand_query",
     "search_and_validate",
     "generate_answer_body",
     "generate_lead_paragraph",
