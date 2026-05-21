@@ -1,16 +1,15 @@
 """Source attribution utilities using LLM analysis."""
 
 import json
-from typing import List
 from ..api.connectors.lex_db_connector import LexArticle
 from ..api.connectors.openai_provider import LLMProvider
 
 
 async def extract_used_sources_via_llm(
     response: str,
-    retrieved_docs: List[LexArticle],
+    retrieved_docs: list[LexArticle],
     llm_provider: LLMProvider,
-) -> List[LexArticle]:
+) -> list[LexArticle]:
     """
     Uses an LLM to analyze the generated response and return only the Document objects
     that were actually used in generating the answer.

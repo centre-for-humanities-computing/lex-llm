@@ -1,5 +1,6 @@
 from typing import Any, Dict, List, Optional
 import uuid
+from datetime import datetime, timezone
 from .event_models import (
     Source,
     StreamEvent,
@@ -9,6 +10,8 @@ from .event_models import (
     StreamEndData,
     ToolCallData,
     ErrorData,
+    DefinitionItem,
+    DefinitionsData,
 )
 
 
@@ -22,6 +25,7 @@ class EventEmitter:
             event=event,
             conversation_id=self.conversation_id,
             run_id=self.run_id,
+            timestamp=datetime.now(timezone.utc).isoformat(),
             data=data.model_dump(exclude_none=True)
             if hasattr(data, "model_dump")
             else data,
@@ -48,9 +52,30 @@ class EventEmitter:
     def reasoning_chunk(self, text: str) -> str:
         return self.emit("reasoning_chunk", text)
 
+    def lead_paragraph_chunk(self, text: str) -> str:
+        """Emits a lead paragraph text chunk."""
+        return self.emit("lead_paragraph", text)
+
+    def answer_body_chunk(self, text: str) -> str:
+        """Emits an answer body text chunk."""
+        return self.emit("answer_body", text)
+
+    def interpretation_chunk(self, text: str) -> str:
+        """Emits an interpretation text chunk."""
+        return self.emit("interpretation", text)
+
+    def definitions(self, definitions: List[DefinitionItem]) -> str:
+        """Emits a list of term definitions."""
+        data = DefinitionsData(definitions=definitions)
+        return self.emit("definitions", data)
+
     def tool_call(self, name: str, input_data: Dict[str, Any]) -> str:
         data = ToolCallData(name=name, input=input_data)
         return self.emit("tool_call", data)
+
+    def tool_result(self, name: str, result_data: Dict[str, Any]) -> str:
+        data = ToolCallData(name=name, input=result_data)
+        return self.emit("tool_result", data)
 
     def sources(self, sources: List[Source]) -> str:
         return self.emit("sources", [s.model_dump() for s in sources])

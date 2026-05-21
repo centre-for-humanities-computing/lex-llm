@@ -10,14 +10,14 @@ class OpenRouterProvider(LLMProvider):
     def __init__(
         self,
         model: str = "google/gemma-3-27b-it",
-        providers: Optional[List[str]] = ["nebius/fp8"],
+        providers: Optional[List[str]] = None,
     ):
         """
         Initialize OpenRouter provider.
 
         Args:
             model: The model to use (default: google/gemma-3-27b-it)
-            provider: The provider preference for routing (default: nebius/fp8)
+            provider: The provider preference for routing (default: None, which uses OpenRouters routing logic)
                      Set to None to use OpenRouter's default routing
             api_key: OpenRouter API key (default: reads from OPENROUTER_API_KEY env var)
         """

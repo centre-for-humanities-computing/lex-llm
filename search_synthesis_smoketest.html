@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Workflow Smoketest — search_synthesis_v1</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: monospace; background: #1a1a2e; color: #e0e0e0; padding: 1rem; }
+  h1 { color: #00d4ff; margin-bottom: .5rem; }
+  .controls { display: flex; gap: .5rem; margin-bottom: 1rem; flex-wrap: wrap; align-items: end; }
+  label { display: flex; flex-direction: column; gap: .25rem; font-size: .85rem; color: #aaa; }
+  input, textarea { background: #16213e; border: 1px solid #0f3460; color: #e0e0e0; padding: .4rem; border-radius: 4px; font-family: inherit; }
+  textarea { width: 400px; height: 60px; }
+  input[type=text] { width: 300px; }
+  button { background: #0f3460; color: #00d4ff; border: 1px solid #00d4ff; padding: .5rem 1.2rem; border-radius: 4px; cursor: pointer; font-family: inherit; font-size: .9rem; }
+  button:hover { background: #00d4ff; color: #1a1a2e; }
+  button:disabled { opacity: .4; cursor: not-allowed; }
+  .status { font-size: .85rem; color: #aaa; margin-bottom: 1rem; }
+  .status.error { color: #ff6b6b; }
+  .status.running { color: #ffd93d; }
+  .status.done { color: #6bcb77; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: .75rem; }
+  .section { background: #16213e; border: 1px solid #0f3460; border-radius: 6px; padding: .75rem; max-height: 400px; overflow-y: auto; }
+  .section h2 { font-size: .9rem; color: #00d4ff; margin-bottom: .5rem; border-bottom: 1px solid #0f3460; padding-bottom: .3rem; }
+  .section h2 .count { color: #aaa; font-weight: normal; }
+  .section pre { white-space: pre-wrap; word-break: break-word; font-size: .8rem; line-height: 1.4; }
+  .section .empty { color: #555; font-style: italic; font-size: .8rem; }
+  .raw-log { grid-column: 1 / -1; max-height: 300px; }
+  .raw-log pre { font-size: .7rem; color: #888; }
+</style>
+</head>
+<body>
+
+<h1>🔬 Smoketest — search_synthesis_v1</h1>
+
+<div class="controls">
+  <label>API Base URL
+    <input type="text" id="baseUrl" value="http://localhost:8001">
+  </label>
+  <label>User Input
+    <textarea id="userInput">Hvad kan du fortælle mig om Kronborg?</textarea>
+  </label>
+  <label>Conversation ID
+    <input type="text" id="convId" value="">
+  </label>
+  <button id="runBtn" onclick="runWorkflow()">▶ Run Workflow</button>
+  <button onclick="clearAll()">🗑 Clear</button>
+</div>
+
+<div id="status" class="status">Ready</div>
+
+<div class="grid" id="sections">
+  <div class="section" id="sec-control_flow"><h2>control_flow <span class="count"></span></h2><div class="empty">— no events yet —</div></div>
+  <div class="section" id="sec-tool_call"><h2>tool_call <span class="count"></span></h2><div class="empty">— no events yet —</div></div>
+  <div class="section" id="sec-interpretation"><h2>interpretation <span class="count"></span></h2><div class="empty">— no events yet —</div></div>
+  <div class="section" id="sec-lead_paragraph"><h2>lead_paragraph <span class="count"></span></h2><div class="empty">— no events yet —</div></div>
+  <div class="section" id="sec-answer_body"><h2>answer_body <span class="count"></span></h2><div class="empty">— no events yet —</div></div>
+  <div class="section" id="sec-definitions"><h2>definitions <span class="count"></span></h2><div class="empty">— no events yet —</div></div>
+  <div class="section" id="sec-sources"><h2>sources <span class="count"></span></h2><div class="empty">— no events yet —</div></div>
+  <div class="section" id="sec-text_chunk"><h2>text_chunk <span class="count"></span></h2><div class="empty">— no events yet —</div></div>
+  <div class="section" id="sec-reasoning_chunk"><h2>reasoning_chunk <span class="count"></span></h2><div class="empty">— no events yet —</div></div>
+  <div class="section" id="sec-error"><h2>error <span class="count"></span></h2><div class="empty">— no events yet —</div></div>
+  <div class="section raw-log" id="sec-raw"><h2>Raw NDJSON Log <span class="count"></span></h2><div class="empty">— no events yet —</div></div>
+</div>
+
+<script>
+const EVENT_SECTIONS = [
+  "control_flow","tool_call",
+  "interpretation","lead_paragraph","answer_body","definitions",
+  "sources","text_chunk","reasoning_chunk","error"
+];
+
+const STREAMING_EVENTS = new Set([
+  "answer_body", "lead_paragraph", "text_chunk", "reasoning_chunk", "interpretation"
+]);
+
+const counters = {};
+EVENT_SECTIONS.forEach(e => counters[e] = 0);
+let rawCount = 0;
+
+function uuid() {
+  return crypto.randomUUID();
+}
+
+function setStatus(msg, cls) {
+  const el = document.getElementById("status");
+  el.textContent = msg;
+  el.className = "status" + (cls ? " " + cls : "");
+}
+
+const CONTROL_FLOW_EVENTS = new Set(["stream_start", "stream_end", "workflow_step"]);
+
+function formatTimestamp(ts) {
+  if (!ts) return "";
+  try {
+    const d = new Date(ts);
+    const hh = String(d.getHours()).padStart(2, "0");
+    const mm = String(d.getMinutes()).padStart(2, "0");
+    const ss = String(d.getSeconds()).padStart(2, "0");
+    const ms = String(d.getMilliseconds()).padStart(3, "0");
+    return `${hh}:${mm}:${ss}.${ms}`;
+  } catch { return ""; }
+}
+
+function formatControlFlowLine(eventType, data, timestamp) {
+  const ts = formatTimestamp(timestamp);
+  const prefix = ts ? `[${ts}] ` : "";
+  if (eventType === "stream_start") return `${prefix}── Stream started ──`;
+  if (eventType === "stream_end") return `${prefix}── Stream ended ──`;
+  // workflow_step
+  const name = data.name || "unknown";
+  const status = data.status || "?";
+  const icons = { started: "▶", in_progress: "⏳", completed: "✓", failed: "✗" };
+  const icon = icons[status] || "·";
+  return `${prefix}${icon} ${name} ${status}`;
+}
+
+function appendToSection(eventType, content, rawData, timestamp) {
+  // Route control flow events into one section
+  const displayType = CONTROL_FLOW_EVENTS.has(eventType) ? "control_flow"
+    : eventType === "tool_result" ? "tool_call"
+    : eventType;
+  const secId = "sec-" + displayType;
+  let sec = document.getElementById(secId);
+  // If we don't have a dedicated section, put it in a catch-all
+  if (!sec) {
+    sec = document.getElementById("sec-raw");
+  }
+  const container = sec;
+  // Remove empty placeholder
+  const empty = container.querySelector(".empty");
+  if (empty) empty.remove();
+
+  if (STREAMING_EVENTS.has(eventType)) {
+    // For streaming text, append to a single <span> so tokens flow as coherent text
+    let span = container.querySelector("span.streaming-text");
+    if (!span) {
+      span = document.createElement("span");
+      span.className = "streaming-text";
+      span.style.whiteSpace = "pre-wrap";
+      span.style.wordBreak = "break-word";
+      span.style.fontSize = ".8rem";
+      span.style.lineHeight = "1.4";
+      container.appendChild(span);
+    }
+    span.textContent += content;
+    container.scrollTop = container.scrollHeight;
+  } else if (CONTROL_FLOW_EVENTS.has(eventType)) {
+    // For control flow, show a compact formatted line
+    const pre = document.createElement("pre");
+    pre.textContent = formatControlFlowLine(eventType, rawData, timestamp);
+    container.appendChild(pre);
+    container.scrollTop = container.scrollHeight;
+  } else {
+    const pre = document.createElement("pre");
+    pre.textContent = content;
+    container.appendChild(pre);
+    container.scrollTop = container.scrollHeight;
+  }
+
+  // Update counter
+  if (counters[displayType] !== undefined) {
+    counters[displayType]++;
+    container.querySelector("h2 .count").textContent = "(" + counters[displayType] + ")";
+  }
+}
+
+function appendRaw(line) {
+  rawCount++;
+  const sec = document.getElementById("sec-raw");
+  const empty = sec.querySelector(".empty");
+  if (empty) empty.remove();
+  const pre = document.createElement("pre");
+  pre.textContent = line;
+  sec.appendChild(pre);
+  sec.querySelector("h2 .count").textContent = "(" + rawCount + ")";
+  sec.scrollTop = sec.scrollHeight;
+}
+
+function clearAll() {
+  EVENT_SECTIONS.forEach(e => {
+    counters[e] = 0;
+    const sec = document.getElementById("sec-" + e);
+    sec.querySelector("h2 .count").textContent = "";
+    const emptyDiv = document.createElement("div");
+    emptyDiv.className = "empty";
+    emptyDiv.textContent = "— no events yet —";
+    // Remove all pre and streaming span elements
+    sec.querySelectorAll("pre, .streaming-text").forEach(p => p.remove());
+    sec.appendChild(emptyDiv);
+  });
+  rawCount = 0;
+  const rawSec = document.getElementById("sec-raw");
+  rawSec.querySelector("h2 .count").textContent = "";
+  rawSec.querySelectorAll("pre").forEach(p => p.remove());
+  const emptyDiv = document.createElement("div");
+  emptyDiv.className = "empty";
+  emptyDiv.textContent = "— no events yet —";
+  rawSec.appendChild(emptyDiv);
+  setStatus("Ready");
+}
+
+async function runWorkflow() {
+  const btn = document.getElementById("runBtn");
+  btn.disabled = true;
+
+  const baseUrl = document.getElementById("baseUrl").value.replace(/\/+$/, "");
+  const userInput = document.getElementById("userInput").value;
+  const convId = document.getElementById("convId").value || uuid();
+
+  const url = `${baseUrl}/workflows/search_synthesis_v1/run`;
+  const body = {
+    user_input: userInput,
+    conversation_history: [],
+    conversation_id: convId,
+  };
+
+  setStatus("Running…", "running");
+
+  try {
+    const resp = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+
+    if (!resp.ok) {
+      const text = await resp.text();
+      setStatus(`HTTP ${resp.status}: ${text.slice(0, 200)}`, "error");
+      btn.disabled = false;
+      return;
+    }
+
+    const reader = resp.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop(); // keep incomplete line in buffer
+
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed) continue;
+
+        appendRaw(trimmed);
+
+        try {
+          const evt = JSON.parse(trimmed);
+          const eventType = evt.event;
+          const data = evt.data;
+
+          // Format display based on event type
+          let display;
+          if (typeof data === "string") {
+            display = data;
+          } else {
+            display = JSON.stringify(data, null, 2);
+          }
+
+          appendToSection(eventType, display, data, evt.timestamp);
+        } catch (e) {
+          appendToSection("error", "Parse error: " + trimmed, null, null);
+        }
+      }
+    }
+
+    // Process any remaining buffer
+    if (buffer.trim()) {
+      appendRaw(buffer.trim());
+      try {
+        const evt = JSON.parse(buffer.trim());
+        const display = typeof evt.data === "string" ? evt.data : JSON.stringify(evt.data, null, 2);
+        appendToSection(evt.event, display, evt.data, evt.timestamp);
+      } catch (e) { /* ignore */ }
+    }
+
+    setStatus("Done ✓", "done");
+  } catch (err) {
+    setStatus("Error: " + err.message, "error");
+  } finally {
+    btn.disabled = false;
+  }
+}
+</script>
+</body>
+</html>
