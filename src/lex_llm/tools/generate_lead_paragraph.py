@@ -51,6 +51,14 @@ def generate_lead_paragraph(
         async for chunk in llm_provider.generate_stream(llm_messages):  # type: ignore
             full_paragraph += chunk
             yield emitter.lead_paragraph_chunk(chunk)
+            yield emitter.text_chunk(
+                chunk
+            )  # also emit as regular text chunk for backward compatibility
+
+        yield emitter.text_chunk("\n\n")
+        yield emitter.text_chunk(
+            answer_body
+        )  # re-emit the full answer body as a text_chunk for backwards compatibility
 
         context["lead_paragraph"] = full_paragraph
 

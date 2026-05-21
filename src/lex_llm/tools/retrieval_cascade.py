@@ -74,7 +74,7 @@ def _reciprocal_rank_fusion(
     return [chunk_map[key] for key in sorted_keys]
 
 
-def search_and_validate(
+def retrieval_cascade(
     llm_provider: LLMProvider,
     index_name: str = "article_embeddings_e5",
     top_k: int = 10,
@@ -100,7 +100,7 @@ def search_and_validate(
         - insufficient_context_reason: str — reason for insufficient context (if applicable)
     """
 
-    async def _search_and_validate(
+    async def _retrieval_cascade(
         context: dict[str, Any], emitter: EventEmitter
     ) -> AsyncGenerator[str | None, None]:
         # Skip if workflow is done (e.g., out-of-scope query)
@@ -332,7 +332,7 @@ def search_and_validate(
             or "Søgningen fandt ikke tilstrækkeligt relevante artikler efter tre forsøg"
         )
 
-    return _search_and_validate
+    return _retrieval_cascade
 
 
 # ---------------------------------------------------------------------------

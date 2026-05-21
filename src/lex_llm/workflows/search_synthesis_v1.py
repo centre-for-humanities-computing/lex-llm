@@ -14,13 +14,14 @@ Steps:
 All LLM calls use OpenRouter with google/gemma-4-26B-A4B-it.
 """
 
+from lex_llm.api.connectors.scaleway_provider import ScalewayProvider
+
 from ..api.orchestrator import Orchestrator, ParallelStep
-from ..api.connectors.openrouter_provider import OpenRouterProvider
 from ..api.event_models import WorkflowRunRequest
 from ..tools import (
     interpret_and_route,
     generate_deferral,
-    search_and_validate,
+    retrieval_cascade,
     generate_answer_body,
     generate_lead_paragraph,
     generate_definitions,
@@ -30,7 +31,7 @@ from ..prompts_search_synthesis import get_answer_body_prompt
 from datetime import date
 
 # Shared LLM provider for all steps
-_llm = OpenRouterProvider(model="google/gemma-4-26B-A4B-it")
+_llm = ScalewayProvider(model="gemma-4-26b-a4b-it")
 
 
 def get_workflow(request: WorkflowRunRequest) -> Orchestrator:
@@ -41,9 +42,9 @@ def get_workflow(request: WorkflowRunRequest) -> Orchestrator:
         steps=[
             interpret_and_route(llm_provider=_llm),
             generate_deferral(llm_provider=_llm),
-            search_and_validate(
+            retrieval_cascade(
                 llm_provider=_llm,
-                index_name="article_embeddings_e5",
+                index_name="jina_v5_small",
                 top_k=25,
                 top_k_semantic=40,
                 top_k_fts=40,

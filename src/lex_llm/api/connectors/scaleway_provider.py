@@ -19,8 +19,10 @@ class ScalewayProvider(LLMProvider):
         self, messages: List[ConversationMessage]
     ) -> AsyncGenerator[str, None]:
         """Calls the Scaleways API and streams the response."""
+        # Convert Pydantic models to dicts for litellm
+        messages_dicts = [m.model_dump() for m in messages]
         stream = await litellm.acompletion(
-            model="openai/" + self.model, messages=messages, stream=True
+            model="openai/" + self.model, messages=messages_dicts, stream=True
         )
         async for chunk in stream:  # type: ignore
             content = chunk.choices[0].delta.content
