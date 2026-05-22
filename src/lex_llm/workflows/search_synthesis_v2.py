@@ -1,4 +1,4 @@
-"""Search & Synthesis workflow v1.
+"""Search & Synthesis workflow v2.
 
 A search-and-synthesis interaction model that restructures answers into
 5 sections: lead paragraph, body, definitions, interpretation, and sources.
@@ -11,11 +11,14 @@ Steps:
 5. generate_lead_paragraph — Generate the lead paragraph
 6. ParallelStep([generate_definitions, generate_source_list]) — Definitions + sources in parallel
 
-All LLM calls use OpenRouter with google/gemma-4-26B-A4B-it.
+All LLM calls use the DGX Spark with gemma-4-26B-A4B-it and fallback to Scaleway.
 """
 
+from lex_llm.api.connectors.dgx_provider import DGXProvider
+from lex_llm.api.connectors.routing_llm_provider import RoutingLLMProvider
+from lex_llm.api.connectors.scaleway_provider import ScalewayProvider
+
 from ..api.orchestrator import Orchestrator, ParallelStep
-from ..api.connectors.openrouter_provider import OpenRouterProvider
 from ..api.event_models import WorkflowRunRequest
 from ..tools import (
     interpret_and_route,
@@ -30,11 +33,15 @@ from ..prompts_search_synthesis import get_answer_body_prompt
 from datetime import date
 
 # Shared LLM provider for all steps
-_llm = OpenRouterProvider(model="google/gemma-4-26B-A4B-it")
+_llm = RoutingLLMProvider(
+    primary=DGXProvider(model="gemma-4-26B-A4B-it"),
+    fallback=ScalewayProvider(model="gemma-4-26b-a4b-it"),
+    monitor=monitor,
+)
 
 
 def get_workflow(request: WorkflowRunRequest) -> Orchestrator:
-    """Configures and returns the Search & Synthesis v1 workflow orchestrator."""
+    """Configures and returns the Search & Synthesis v2 workflow orchestrator."""
 
     return Orchestrator(
         request=request,
@@ -70,8 +77,8 @@ def get_workflow(request: WorkflowRunRequest) -> Orchestrator:
 
 def get_metadata() -> dict:
     return {
-        "workflow_id": "search_synthesis_v1",
-        "name": "Search & Synthesis v1",
+        "workflow_id": "search_synthesis_v2",
+        "name": "Search & Synthesis v2",
         "description": (
             "A search-and-synthesis workflow that restructures answers into "
             "5 sections: lead paragraph, body, definitions, interpretation, "
@@ -79,7 +86,7 @@ def get_metadata() -> dict:
             "three-stage progressive retrieval strategy: simple hybrid search, "
             "intermediate keyword expansion, and advanced HyDE-based corrective-RAG. "
             "Parallel generation of definitions + source list. "
-            "All LLM calls use Google Gemma 4 26B A4B via OpenRouter."
+            "All LLM calls use Google Gemma 4 26B A4B via the DGX Spark with a fallback to Scaleway."
         ),
         "steps": [
             {
@@ -126,6 +133,6 @@ def get_metadata() -> dict:
                 "outputs": ["definitions", "used_sources", "final_response"],
             },
         ],
-        "author": "Zafar Hussain",
-        "version": "1.0.0",
+        "author": "Simon Enni",
+        "version": "2.0.0",
     }
