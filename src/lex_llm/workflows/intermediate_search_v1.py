@@ -12,7 +12,6 @@ All LLM calls use Cortecs.ai with google/gemma-4-26B-A4B-it.
 from lex_llm.api.connectors.scaleway_provider import ScalewayProvider
 
 from ..api.orchestrator import Orchestrator
-from ..api.connectors.cortecs_provider import CortecsProvider
 from ..api.event_models import WorkflowRunRequest
 from ..tools.search_with_expansion import search_with_expansion
 
