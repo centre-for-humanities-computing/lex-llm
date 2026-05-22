@@ -45,6 +45,9 @@ class LexArticle(BaseModel):
     title: str
     text: str
     url: str | None = None
+    highlight: str | None = (
+        None  # Optional field for the most relevant chunk text to be used as a highlight
+    )
 
 
 def group_chunks_to_articles(chunks: list[LexChunk]) -> list[LexArticle]:
@@ -62,6 +65,8 @@ def group_chunks_to_articles(chunks: list[LexChunk]) -> list[LexArticle]:
 
     articles: list[LexArticle] = []
     for aid, article_chunks in grouped.items():
+        # Find the highlight before sorting by chunk_seq, since the highlight is based on the most relevant chunk regardless of its position in the article
+        highlight = next((c.chunk_text for c in article_chunks if c.chunk_text), None)
         # Sort chunks by sequence number
         article_chunks.sort(key=lambda c: c.chunk_seq)
         # Use title/url from the first chunk that has them
@@ -73,6 +78,7 @@ def group_chunks_to_articles(chunks: list[LexChunk]) -> list[LexArticle]:
                 title=title,
                 text="\n\n".join(c.chunk_text for c in article_chunks),
                 url=url,
+                highlight=highlight,
             )
         )
     return articles

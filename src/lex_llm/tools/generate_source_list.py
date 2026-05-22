@@ -54,9 +54,7 @@ def generate_source_list(
         # Format source descriptions for the LLM
         source_descriptions = "\n".join(
             [
-                f"ID: {doc.id} | Titel: {doc.title} | Indhold: {doc.text[:300]}..."
-                if len(doc.text) > 300
-                else f"ID: {doc.id} | Titel: {doc.title} | Indhold: {doc.text}"
+                f"ID: {doc.id} | Titel: {doc.title} | Indhold: {doc.text}"
                 for doc in retrieved_docs
             ]
         )
@@ -110,7 +108,7 @@ def generate_source_list(
         # Emit sources
         yield emitter.sources(
             [
-                Source(id=doc.id, title=doc.title, url=doc.url if doc.url else "")
+                Source(id=doc.id, title=doc.title, url=doc.url, highlight=doc.highlight)
                 for doc in used_docs
             ]
         )

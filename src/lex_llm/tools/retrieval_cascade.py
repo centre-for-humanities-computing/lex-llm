@@ -26,6 +26,8 @@ from ..prompts_search_synthesis import (
     get_intermediate_expansion_prompt,
     get_advanced_expansion_prompt,
 )
+from ..utils.rrf import reciprocal_rank_fusion
+from ..utils.retrieval_helpers import build_retrieval_result
 from .llm_json import parse_json_response
 
 
@@ -40,38 +42,6 @@ def _format_docs(chunks: list[LexChunk]) -> str:
     for doc in articles:
         lines.append(f"*ID:* {doc.id} | *Titel:* {doc.title}\n*Tekst:* {doc.text}\n")
     return "\n\n".join(lines)
-
-
-def _reciprocal_rank_fusion(
-    *result_lists: list[LexChunk],
-    k: int = 60,
-) -> list[LexChunk]:
-    """Merge multiple ranked result lists using Reciprocal Rank Fusion.
-
-    Fusion operates at the chunk level. Each unique (article_id, chunk_seq)
-    pair gets an RRF score. If the same chunk appears in multiple result lists,
-    its scores are summed.
-
-    Args:
-        *result_lists: Any number of ranked LexChunk lists (e.g. per-query semantic
-            results, per-query FTS results, etc.).
-        k: RRF constant (default 60). Higher k dampens the effect of individual ranks.
-
-    Returns:
-        Deduplicated, fused list of LexChunks ordered by RRF score.
-    """
-    rrf_scores: dict[tuple[int, int], float] = {}
-    chunk_map: dict[tuple[int, int], LexChunk] = {}
-
-    for results in result_lists:
-        for rank, chunk in enumerate(results):
-            key = (chunk.article_id, chunk.chunk_seq)
-            rrf_scores[key] = rrf_scores.get(key, 0.0) + 1.0 / (k + rank + 1)
-            chunk_map[key] = chunk
-
-    # Sort by RRF score descending
-    sorted_keys = sorted(rrf_scores, key=lambda x: rrf_scores[x], reverse=True)
-    return [chunk_map[key] for key in sorted_keys]
 
 
 def retrieval_cascade(
@@ -136,7 +106,7 @@ def retrieval_cascade(
             top_k=top_k_fts,
             index_name=index_name,
         )
-        fused_chunks = _reciprocal_rank_fusion(
+        fused_chunks = reciprocal_rank_fusion(
             *semantic_chunks,
             *fts_chunks,
             k=rrf_k,
@@ -144,7 +114,7 @@ def retrieval_cascade(
 
         yield emitter.tool_result(
             name="simple_retrieval",
-            result_data=_build_retrieval_result(
+            result_data=build_retrieval_result(
                 [c for qs in semantic_chunks for c in qs],
                 [c for qs in fts_chunks for c in qs],
                 fused_chunks,
@@ -212,7 +182,7 @@ def retrieval_cascade(
             top_k=top_k_fts,
             index_name=index_name,
         )
-        fused_chunks = _reciprocal_rank_fusion(
+        fused_chunks = reciprocal_rank_fusion(
             *semantic_chunks,
             *fts_chunks,
             k=rrf_k,
@@ -220,7 +190,7 @@ def retrieval_cascade(
 
         yield emitter.tool_result(
             name="intermediate_retrieval",
-            result_data=_build_retrieval_result(
+            result_data=build_retrieval_result(
                 [c for qs in semantic_chunks for c in qs],
                 [c for qs in fts_chunks for c in qs],
                 fused_chunks,
@@ -284,7 +254,7 @@ def retrieval_cascade(
             top_k=top_k_fts,
             index_name=index_name,
         )
-        fused_chunks = _reciprocal_rank_fusion(
+        fused_chunks = reciprocal_rank_fusion(
             *semantic_chunks,
             *fts_chunks,
             k=rrf_k,
@@ -292,7 +262,7 @@ def retrieval_cascade(
 
         yield emitter.tool_result(
             name="advanced_retrieval",
-            result_data=_build_retrieval_result(
+            result_data=build_retrieval_result(
                 [c for qs in semantic_chunks for c in qs],
                 [c for qs in fts_chunks for c in qs],
                 fused_chunks,
@@ -345,47 +315,6 @@ def _set_context_success(context: dict[str, Any], chunks: list[LexChunk]) -> Non
     context["retrieved_chunks"] = chunks
     context["retrieved_docs"] = group_chunks_to_articles(chunks)
     context["insufficient_context"] = False
-
-
-def _build_retrieval_result(
-    semantic_chunks: list[LexChunk],
-    fts_chunks: list[LexChunk],
-    fused_chunks: list[LexChunk],
-    rrf_k: int,
-) -> dict[str, Any]:
-    """Build a serialisable result dict for tool_result events."""
-    return {
-        "semantic_chunks": [
-            {
-                "article_id": chunk.article_id,
-                "chunk_seq": chunk.chunk_seq,
-                "title": chunk.title,
-                "url": chunk.url,
-                "score": round(1.0 / (rrf_k + idx + 1), 4),
-            }
-            for idx, chunk in enumerate(semantic_chunks)
-        ],
-        "fts_chunks": [
-            {
-                "article_id": chunk.article_id,
-                "chunk_seq": chunk.chunk_seq,
-                "title": chunk.title,
-                "url": chunk.url,
-                "score": round(1.0 / (rrf_k + idx + 1), 4),
-            }
-            for idx, chunk in enumerate(fts_chunks)
-        ],
-        "top_fused_chunks": [
-            {
-                "article_id": chunk.article_id,
-                "chunk_seq": chunk.chunk_seq,
-                "title": chunk.title,
-                "url": chunk.url,
-                "rrf_score": round(1.0 / (rrf_k + idx + 1), 4),
-            }
-            for idx, chunk in enumerate(fused_chunks)
-        ],
-    }
 
 
 async def _run_relevance_evaluation(

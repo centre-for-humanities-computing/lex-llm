@@ -44,7 +44,7 @@ def get_workflow(request: WorkflowRunRequest) -> Orchestrator:
             generate_deferral(llm_provider=_llm),
             retrieval_cascade(
                 llm_provider=_llm,
-                index_name="jina_v5_small",
+                index_name="article_embeddings_e5",
                 top_k=25,
                 top_k_semantic=40,
                 top_k_fts=40,
@@ -127,6 +127,6 @@ def get_metadata() -> dict:
                 "outputs": ["definitions", "used_sources", "final_response"],
             },
         ],
-        "author": "Zafar Hussain",
+        "author": "Simon Enni",
         "version": "1.0.0",
     }
