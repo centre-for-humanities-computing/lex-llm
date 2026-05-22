@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Workflow Smoketest — search_synthesis_v1</title>
+<title>Workflow Smoketest</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: monospace; background: #1a1a2e; color: #e0e0e0; padding: 1rem; }
@@ -32,9 +32,16 @@
 </head>
 <body>
 
-<h1>🔬 Smoketest — search_synthesis_v1</h1>
+<h1>🔬 Smoketest</h1>
 
 <div class="controls">
+  <label>Workflow
+    <select id="workflowId" style="background:#16213e;border:1px solid #0f3460;color:#e0e0e0;padding:.4rem;border-radius:4px;font-family:inherit;">
+      <option value="search_synthesis_v1">search_synthesis_v1</option>
+      <option value="intermediate_search_v1">intermediate_search_v1</option>
+      <option value="simple_search_v1">simple_search_v1</option>
+    </select>
+  </label>
   <label>API Base URL
     <input type="text" id="baseUrl" value="http://localhost:8001">
   </label>
@@ -208,8 +215,9 @@ async function runWorkflow() {
   const baseUrl = document.getElementById("baseUrl").value.replace(/\/+$/, "");
   const userInput = document.getElementById("userInput").value;
   const convId = document.getElementById("convId").value || uuid();
+  const workflowId = document.getElementById("workflowId").value;
 
-  const url = `${baseUrl}/workflows/search_synthesis_v1/run`;
+  const url = `${baseUrl}/workflows/${encodeURIComponent(workflowId)}/run`;
   const body = {
     user_input: userInput,
     conversation_history: [],

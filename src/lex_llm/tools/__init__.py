@@ -6,8 +6,6 @@ from .interpret_and_route import interpret_and_route
 from .generate_deferral import generate_deferral
 from .retrieval_cascade import retrieval_cascade
 from .expand_query import expand_query
-from .search_and_validate import search_and_validate
-from .search_with_expansion import search_with_expansion
 from .simple_search import simple_search
 from .generate_answer_body import generate_answer_body
 from .generate_lead_paragraph import generate_lead_paragraph
@@ -21,8 +19,6 @@ __all__ = [
     "generate_deferral",
     "retrieval_cascade",
     "expand_query",
-    "search_and_validate",
-    "search_with_expansion",
     "simple_search",
     "generate_answer_body",
     "generate_lead_paragraph",

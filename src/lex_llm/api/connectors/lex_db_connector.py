@@ -45,7 +45,9 @@ class LexArticle(BaseModel):
     title: str
     text: str
     url: str | None = None
-    highlight: str | None = None  # Optional field for the most relevant chunk text to be used as a highlight
+    highlight: str | None = (
+        None  # Optional field for the most relevant chunk text to be used as a highlight
+    )
 
 
 def group_chunks_to_articles(chunks: list[LexChunk]) -> list[LexArticle]:

@@ -1,6 +1,6 @@
 """Search-only tool with query expansion and hybrid retrieval.
 
-Unlike ``search_and_validate``, this tool does NOT evaluate relevance
+Unlike ``retrieval_cascade``, this tool does NOT evaluate relevance
 or escalate through multiple stages. It performs a single round of
 query expansion (semantic subqueries + keyword queries) followed by
 hybrid search with Reciprocal Rank Fusion, and returns deduplicated
@@ -10,56 +10,25 @@ This is designed for search-endpoint workflows that only need a list
 of matching articles — no summarization, no corrective-RAG loops.
 """
 
-from collections import OrderedDict
 from collections.abc import AsyncGenerator, Callable
 from typing import Any
+
+from lex_db_api.models.text_type import TextType
 
 from ..api.event_emitter import EventEmitter
 from ..api.connectors.openai_provider import LLMProvider
 from ..api.connectors.lex_db_connector import (
     LexDBConnector,
-    LexChunk,
     group_chunks_to_articles,
 )
-from ..api.event_models import ConversationMessage, Source
+from ..api.event_models import ConversationMessage
 from ..prompts_search_synthesis import get_intermediate_expansion_prompt
+from ..utils.rrf import reciprocal_rank_fusion
+from ..utils.retrieval_helpers import (
+    build_search_result,
+    deduplicate_chunks_to_sources,
+)
 from .llm_json import parse_json_response
-
-
-def _reciprocal_rank_fusion(
-    semantic_results: list[LexChunk],
-    fts_results: list[LexChunk],
-    k: int = 60,
-) -> list[LexChunk]:
-    """Merge semantic and full-text search results using Reciprocal Rank Fusion.
-
-    Fusion operates at the chunk level. Each unique (article_id, chunk_seq)
-    pair gets an RRF score. If the same chunk appears in both result sets,
-    its scores are summed.
-
-    Args:
-        semantic_results: Chunks from vector/semantic search, ordered by relevance.
-        fts_results: Chunks from full-text search, ordered by relevance.
-        k: RRF constant (default 60). Higher k dampens the effect of individual ranks.
-
-    Returns:
-        Deduplicated, fused list of LexChunks ordered by RRF score.
-    """
-    rrf_scores: dict[tuple[int, int], float] = {}
-    chunk_map: dict[tuple[int, int], LexChunk] = {}
-
-    for rank, chunk in enumerate(semantic_results):
-        key = (chunk.article_id, chunk.chunk_seq)
-        rrf_scores[key] = rrf_scores.get(key, 0.0) + 1.0 / (k + rank + 1)
-        chunk_map[key] = chunk
-
-    for rank, chunk in enumerate(fts_results):
-        key = (chunk.article_id, chunk.chunk_seq)
-        rrf_scores[key] = rrf_scores.get(key, 0.0) + 1.0 / (k + rank + 1)
-        chunk_map[key] = chunk
-
-    sorted_keys = sorted(rrf_scores, key=lambda x: rrf_scores[x], reverse=True)
-    return [chunk_map[key] for key in sorted_keys]
 
 
 def search_with_expansion(
@@ -94,7 +63,7 @@ def search_with_expansion(
             return
 
         user_input: str = context.get("user_input", "")
-        interpretation: str = "Brugerens forespørgsel er en søgning efter artikler relateret til det indtastede." 
+        interpretation: str = "Brugerens forespørgsel er en søgning efter artikler relateret til det indtastede."
 
         connector = LexDBConnector()
 
@@ -137,7 +106,7 @@ def search_with_expansion(
         )
 
         semantic_chunks = await connector.batch_vector_search(
-            queries=semantic_queries,
+            queries=[(q, TextType.QUERY) for q in semantic_queries],
             top_k=top_k_semantic,
             index_name=index_name,
         )
@@ -146,16 +115,19 @@ def search_with_expansion(
             top_k=top_k_fts,
             index_name=index_name,
         )
-        fused_chunks = _reciprocal_rank_fusion(
-            semantic_results=semantic_chunks,
-            fts_results=fts_chunks,
+        fused_chunks = reciprocal_rank_fusion(
+            *semantic_chunks,
+            *fts_chunks,
             k=rrf_k,
         )[:top_k]
 
         yield emitter.tool_result(
             name="hybrid_search",
-            result_data=_build_search_result(
-                semantic_chunks, fts_chunks, fused_chunks, rrf_k
+            result_data=build_search_result(
+                [c for qs in semantic_chunks for c in qs],
+                [c for qs in fts_chunks for c in qs],
+                fused_chunks,
+                rrf_k,
             ),
         )
 
@@ -163,7 +135,7 @@ def search_with_expansion(
         # Step 3 — Deduplicate and write results to context                  #
         # Group by article_id, keep the highest-ranked chunk as highlight.   #
         # ------------------------------------------------------------------ #
-        sources = _deduplicate_chunks_to_sources(fused_chunks)
+        sources = deduplicate_chunks_to_sources(fused_chunks)
 
         context["retrieved_chunks"] = fused_chunks
         context["retrieved_docs"] = group_chunks_to_articles(fused_chunks)
@@ -213,72 +185,3 @@ async def _expand_queries(
         semantic_queries = [interpretation]
         keyword_queries = [user_input]
     return semantic_queries, keyword_queries
-
-
-def _deduplicate_chunks_to_sources(chunks: list[LexChunk]) -> list[Source]:
-    """Deduplicate chunks by article_id, keeping the best chunk as a highlight.
-
-    Because ``chunks`` is already sorted by RRF score (descending), the
-    first chunk encountered for each article is guaranteed to be the most
-    relevant one.  An ``OrderedDict`` preserves insertion order so the
-    output list retains the original ranking.
-    """
-    best: OrderedDict[int, LexChunk] = OrderedDict()
-    for chunk in chunks:
-        if chunk.article_id not in best:
-            best[chunk.article_id] = chunk
-
-    return [
-        Source(
-            id=chunk.article_id,
-            title=chunk.title or "",
-            url=chunk.url,
-            highlight=chunk.chunk_text,
-        )
-        for chunk in best.values()
-    ]
-
-
-def _build_search_result(
-    semantic_chunks: list[LexChunk],
-    fts_chunks: list[LexChunk],
-    fused_chunks: list[LexChunk],
-    rrf_k: int,
-) -> dict[str, Any]:
-    """Build a serialisable result dict for tool_result events.
-
-    The ``results`` key contains deduplicated article-level entries with
-    the most relevant chunk text as ``highlight``.
-    """
-    sources = _deduplicate_chunks_to_sources(fused_chunks)
-    return {
-        "semantic_chunks": [
-            {
-                "article_id": chunk.article_id,
-                "chunk_seq": chunk.chunk_seq,
-                "title": chunk.title,
-                "url": chunk.url,
-                "score": round(1.0 / (rrf_k + idx + 1), 4),
-            }
-            for idx, chunk in enumerate(semantic_chunks)
-        ],
-        "fts_chunks": [
-            {
-                "article_id": chunk.article_id,
-                "chunk_seq": chunk.chunk_seq,
-                "title": chunk.title,
-                "url": chunk.url,
-                "score": round(1.0 / (rrf_k + idx + 1), 4),
-            }
-            for idx, chunk in enumerate(fts_chunks)
-        ],
-        "results": [
-            {
-                "id": s.id,
-                "title": s.title,
-                "url": s.url,
-                "highlight": s.highlight,
-            }
-            for s in sources
-        ],
-    }

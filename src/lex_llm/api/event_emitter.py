@@ -77,10 +77,6 @@ class EventEmitter:
         data = ToolCallData(name=name, input=result_data)
         return self.emit("tool_result", data)
 
-    def tool_result(self, name: str, result_data: Dict[str, Any]) -> str:
-        data = ToolCallData(name=name, input=result_data)
-        return self.emit("tool_result", data)
-
     def sources(self, sources: List[Source]) -> str:
         return self.emit("sources", [s.model_dump() for s in sources])
 

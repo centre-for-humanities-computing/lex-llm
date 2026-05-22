@@ -9,13 +9,15 @@ Steps:
 All LLM calls use Cortecs.ai with google/gemma-4-26B-A4B-it.
 """
 
+from lex_llm.api.connectors.scaleway_provider import ScalewayProvider
+
 from ..api.orchestrator import Orchestrator
 from ..api.connectors.cortecs_provider import CortecsProvider
 from ..api.event_models import WorkflowRunRequest
-from ..tools import search_with_expansion
+from ..tools.search_with_expansion import search_with_expansion
 
 # Shared LLM provider for all steps
-_llm = CortecsProvider(model="gemma-4-26b-a4b-it")
+_llm = ScalewayProvider(model="gemma-4-26b-a4b-it")
 
 
 def get_workflow(request: WorkflowRunRequest) -> Orchestrator:
@@ -47,7 +49,7 @@ def get_metadata() -> dict:
             "(semantic subqueries + keyword queries) and hybrid retrieval with "
             "Reciprocal Rank Fusion. Results are deduplicated at the article "
             "level with the most relevant chunk as a highlight. "
-            "All LLM calls use Google Gemma 4 26B A4B via Cortecs.ai."
+            "All LLM calls use Google Gemma 4 26B A4B via Scaleway."
         ),
         "steps": [
             {

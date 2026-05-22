@@ -9,21 +9,20 @@ Results are deduplicated at the article level with the most relevant
 chunk as a highlight.
 """
 
-from collections import OrderedDict
 from collections.abc import AsyncGenerator, Callable
 from typing import Any
+
+from lex_db_api.models.text_type import TextType
 
 from ..api.event_emitter import EventEmitter
 from ..api.connectors.lex_db_connector import (
     LexDBConnector,
-    LexChunk,
     group_chunks_to_articles,
 )
-from ..api.event_models import Source
-from .search_with_expansion import (
-    _reciprocal_rank_fusion,
-    _deduplicate_chunks_to_sources,
-    _build_search_result,
+from ..utils.rrf import reciprocal_rank_fusion
+from ..utils.retrieval_helpers import (
+    build_search_result,
+    deduplicate_chunks_to_sources,
 )
 
 
@@ -71,7 +70,7 @@ def simple_search(
         )
 
         semantic_chunks = await connector.batch_vector_search(
-            queries=[user_input],
+            queries=[(user_input, TextType.QUERY)],
             top_k=top_k_semantic,
             index_name=index_name,
         )
@@ -80,23 +79,26 @@ def simple_search(
             top_k=top_k_fts,
             index_name=index_name,
         )
-        fused_chunks = _reciprocal_rank_fusion(
-            semantic_results=semantic_chunks,
-            fts_results=fts_chunks,
+        fused_chunks = reciprocal_rank_fusion(
+            *semantic_chunks,
+            *fts_chunks,
             k=rrf_k,
         )[:top_k]
 
         yield emitter.tool_result(
             name="simple_search",
-            result_data=_build_search_result(
-                semantic_chunks, fts_chunks, fused_chunks, rrf_k
+            result_data=build_search_result(
+                [c for qs in semantic_chunks for c in qs],
+                [c for qs in fts_chunks for c in qs],
+                fused_chunks,
+                rrf_k,
             ),
         )
 
         # ------------------------------------------------------------------ #
         # Deduplicate and write results to context                           #
         # ------------------------------------------------------------------ #
-        sources = _deduplicate_chunks_to_sources(fused_chunks)
+        sources = deduplicate_chunks_to_sources(fused_chunks)
 
         context["retrieved_chunks"] = fused_chunks
         context["retrieved_docs"] = group_chunks_to_articles(fused_chunks)
