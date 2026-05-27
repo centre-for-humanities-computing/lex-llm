@@ -87,6 +87,10 @@ def generate_response_with_sources(
         """
         retrieved_docs: list[LexArticle] = context.get("retrieved_docs", [])
         user_input: str = context.get("user_input", "").strip()
+        insufficient_context: bool = context.get("insufficient_context", False)
+        insufficient_context_reason: str = context.get(
+            "insufficient_context_reason", "N/A"
+        )
         conversation_history: list[ConversationMessage] = context.get(
             "conversation_history", []
         )
@@ -97,6 +101,14 @@ def generate_response_with_sources(
             context["final_response"] = deferral_message
             return
 
+        if insufficient_context:
+            # If there is insufficient context, generate a specific deferral message
+            detailed_deferral = (
+                f"{deferral_message}\n\nÅrsag: {insufficient_context_reason}"
+            )
+            yield emitter.text_chunk(detailed_deferral)
+            context["final_response"] = detailed_deferral
+            return
         # Extract previously used sources from conversation history (stateless)
         previous_used_sources_data = _extract_used_sources_from_system_prompt(
             conversation_history
@@ -147,9 +159,13 @@ def generate_response_with_sources(
             # Add new user message
             messages.append({"role": "user", "content": user_input})
 
+        messages_for_llm: list[ConversationMessage] = [
+            ConversationMessage(role=m["role"], content=m["content"])  # type: ignore
+            for m in messages
+        ]
         # Stream response from LLM
         full_response = ""
-        async for chunk in llm_provider.generate_stream(messages):  # type: ignore
+        async for chunk in llm_provider.generate_stream(messages_for_llm):  # type: ignore
             full_response += chunk
             yield emitter.text_chunk(chunk)
         context["final_response"] = full_response

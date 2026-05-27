@@ -2,7 +2,7 @@ import litellm
 from ..event_models import ConversationMessage
 from .llm_provider import LLMProvider
 import os
-from typing import AsyncGenerator, List
+from typing import AsyncGenerator
 
 
 class ScalewayProvider(LLMProvider):
@@ -16,13 +16,11 @@ class ScalewayProvider(LLMProvider):
         self.model = model
 
     async def generate_stream(
-        self, messages: List[ConversationMessage]
+        self, messages: list[ConversationMessage]
     ) -> AsyncGenerator[str, None]:
         """Calls the Scaleways API and streams the response."""
         # Convert Pydantic models to dicts for litellm
-        messages_dicts = [
-            m.model_dump() if m is ConversationMessage else m for m in messages
-        ]
+        messages_dicts = [m.model_dump() for m in messages]
         stream = await litellm.acompletion(
             model="openai/" + self.model, messages=messages_dicts, stream=True
         )
@@ -31,7 +29,7 @@ class ScalewayProvider(LLMProvider):
             if content:
                 yield content
 
-    async def generate(self, messages: List[ConversationMessage]) -> str:
+    async def generate(self, messages: list[ConversationMessage]) -> str:
         """Generates a response as a single text chunk."""
         response = ""
         async for chunk in self.generate_stream(messages):
