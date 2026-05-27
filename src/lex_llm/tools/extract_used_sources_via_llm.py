@@ -1,6 +1,8 @@
 """Source attribution utilities using LLM analysis."""
 
 import json
+
+from lex_llm.api.event_models import ConversationMessage
 from ..api.connectors.lex_db_connector import LexArticle
 from ..api.connectors.openai_provider import LLMProvider
 
@@ -50,12 +52,12 @@ Do not include explanations or markdown formatting.
 ## Expected Output Format
 ["id1", "id2", ...]
 """
-    messages = [
-        {
-            "role": "system",
-            "content": "You are a careful analyst who identifies which sources were used in a response from a chatbot.",
-        },
-        {"role": "user", "content": attribution_prompt},
+    messages: list[ConversationMessage] = [
+        ConversationMessage(
+            role="system",
+            content="You are a careful analyst who identifies which sources were used in a response from a chatbot.",
+        ),
+        ConversationMessage(role="user", content=attribution_prompt),
     ]
     try:
         attribution_result = await llm_provider.generate(messages)  # type: ignore
