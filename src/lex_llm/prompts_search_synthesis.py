@@ -541,21 +541,21 @@ def get_insufficient_context_deferral_prompt(
 
 _INTERMEDIATE_EXPANSION_SYSTEM = """Du er en søgeekspert for Lex, en dansk encyklopædi. En simpel søgning med brugerens originale forespørgsel gav ikke tilstrækkeligt relevante resultater. Din opgave er at generere to sæt søgeforespørgsler i ét svar:
 
-1. **semantic_queries**: 2-4 korte, præcise semantiske underforespørgsler der nedbryder eller omformulerer brugerens spørgsmål. Disse skal være korte sætninger eller fraser (ikke hele paragraffer) der dækker forskellige aspekter eller fortolkninger af emnet. De bruges til vektorsøgning.
+1. **semantic_queries**: 2 til 4 korte, præcise semantiske forespørgsler der nedbryder eller omformulerer brugerens spørgsmål. Disse skal være korte sætninger eller fraser (ikke hele paragraffer) der dækker forskellige aspekter eller fortolkninger af emnet. De bruges til vektorsøgning.
 
-2. **keyword_queries**: 2-4 søgeforespørgsler med relevante søgeord. Disse bruges til fuldtekstsøgning og skal indeholde termer der ville optræde i en encyklopædiartikel.
+2. **keyword_queries**: 2 til 6 søgeforespørgsler med relevante søgeord. Disse bruges til fuldtekstsøgning og skal indeholde termer der ville optræde i en encyklopædiartikel.
 
 # Regler
 - Skriv ALTID på dansk.
-- Semantic queries skal være korte (max 1-2 sætninger) — ikke lange hypotetiske tekster.
-- Keyword queries skal bestå af 1-5 relevante søgeord pr. forespørgsel.
-- Brug synonymer, relaterede begreber og alternative formuleringer.
+- Semantic queries skal være korte (max 1 til 2 sætninger) — ikke lange hypotetiske tekster.
+- Keyword queries skal bestå af 1 til 3 relevante søgeord pr. forespørgsel. Hvis inputtet allerede indeholder oplagte søgeord skal disse indgå enten for sig eller i kombination med andre relevante termer.
+- Brug synonymer, relaterede begreber og alternative formuleringer til at supplere eksisterende søgeord.
 - Returner KUN et JSON-objekt med følgende format:
-  {"semantic_queries": ["forespørgsel 1", "forespørgsel 2", ...], "keyword_queries": ["søgeord 1", "søgeord 2", ...]}
+  {"semantic_queries": ["forespørgsel 1", "forespørgsel 2", ...], "keyword_queries": ["søgeord_1", "søgeord_2 søgeord_3", ...]}
 
 Eksempel:
 Brugerforespørgsel: "Hvad var følgerne af Den Sorte Død i Danmark?"
-Output: {"semantic_queries": ["Den Sorte Død konsekvenser Danmark", "pestens indvirkning på dansk middelaldersamfund", "befolkningsfald pest 14. århundrede Skandinavien"], "keyword_queries": ["Den Sorte Død Danmark", "pest middelalder befolkning", "Sortedød konsekvenser 1350", "middelalder epidemi Danmark"]}
+Output: {"semantic_queries": ["Hvor mange døde af Den Sorte Død i Danmark?", "Pestens indvirkning på det danske middelaldersamfund", "Hvilken påvirkning havde pest på befolkningstallet i det 14. århundredes Skandinavien?"], "keyword_queries": ["Sort Død Danmark", "pest", "Sortedød konsekvenser 1350", "middelalder epidemi Danmark"]}
 """
 
 
@@ -585,9 +585,9 @@ def get_intermediate_expansion_prompt(
 
 _ADVANCED_EXPANSION_SYSTEM = f"""Du er en søge- og indholdspecialist for Lex, en dansk encyklopædi. To tidligere søgninger har ikke givet tilstrækkeligt relevante resultater. Din opgave er at generere to sæt søgeforespørgsler i ét svar:
 
-1. **passages**: 1-4 hypotetiske encyklopædiafsnit (2-4 sætninger hver) der beskriver hvad en rigtig Lex-artikel om emnet ville indeholde. Disse bruges til semantisk vektorsøgning og behøver ikke være korrekte — de skal blot ligne rigtige encyklopædiafsnit.
+1. **passages**: 1 til 4 hypotetiske encyklopædiafsnit (2 til 4 sætninger hver) der beskriver hvad en rigtig Lex-artikel om emnet ville indeholde. Disse bruges til semantisk vektorsøgning og behøver ikke være korrekte — de skal blot ligne rigtige encyklopædiafsnit.
 
-2. **keyword_queries**: 2-4 bredere søgeforespørgsler med alternative termer, synonymer og relaterede begreber. Disse bruges til fuldtekstsøgning og skal dække bredere end de tidligere forsøg.
+2. **keyword_queries**: 2 til 6 bredere søgeforespørgsler med alternative termer, synonymer og relaterede begreber. Disse bruges til fuldtekstsøgning og skal dække bredere end de tidligere forsøg.
 
 # Lex' domæne
 {_LEX_DOMAIN_DESCRIPTION}
@@ -595,7 +595,7 @@ _ADVANCED_EXPANSION_SYSTEM = f"""Du er en søge- og indholdspecialist for Lex, e
 # Regler
 - Skriv ALTID på dansk.
 - Passages skal have en neutral, faktuel og encyklopædisk tone, skrevet i tredjeperson.
-- Keyword queries skal inkludere bredere og mere generelle termer end tidligere forsøg.
+- Keyword queries skal inkludere bredere og mere generelle termer end tidligere forsøg. 
 - Brug forslaget til forbedring som vejledning.
 - Returner KUN et JSON-objekt med følgende format:
   {{"passages": ["afsnit 1", "afsnit 2", ...], "keyword_queries": ["søgeord 1", "søgeord 2", ...]}}

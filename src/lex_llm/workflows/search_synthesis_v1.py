@@ -96,7 +96,7 @@ def get_metadata() -> dict:
                 "outputs": ["final_response"],
             },
             {
-                "name": "Search & Validate",
+                "name": "Retrieval Cascade",
                 "description": (
                     "Three-stage progressive hybrid retrieval: "
                     "(1) simple_retrieval with raw query, "
