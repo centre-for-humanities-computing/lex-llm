@@ -20,7 +20,9 @@ class ScalewayProvider(LLMProvider):
     ) -> AsyncGenerator[str, None]:
         """Calls the Scaleways API and streams the response."""
         # Convert Pydantic models to dicts for litellm
-        messages_dicts = [m.model_dump() if type(m) == ConversationMessage else m for m in messages]
+        messages_dicts = [
+            m.model_dump() if m is ConversationMessage else m for m in messages
+        ]
         stream = await litellm.acompletion(
             model="openai/" + self.model, messages=messages_dicts, stream=True
         )
