@@ -73,7 +73,17 @@ def interpret_and_route(
             keywords = None
             subqueries = None
 
-        yield emitter.tool_result("interpret_and_route", {"raw_response": raw_response, "interpretation": interpretation, "in_scope": in_scope, "reason": reason, "keywords": keywords, "subqueries": subqueries})
+        yield emitter.tool_result(
+            "interpret_and_route",
+            {
+                "raw_response": raw_response,
+                "interpretation": interpretation,
+                "in_scope": in_scope,
+                "reason": reason,
+                "keywords": keywords,
+                "subqueries": subqueries,
+            },
+        )
 
         context["query_interpretation"] = interpretation
         context["is_in_scope"] = in_scope
