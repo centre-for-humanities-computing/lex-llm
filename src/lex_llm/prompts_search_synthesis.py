@@ -82,15 +82,19 @@ _INTERPRET_AND_ROUTE_SYSTEM = f"""Du er en analytiker for Lex, en dansk encyklop
 - Spørgsmål der beder om personlige meninger, praktisk rådgivning, eller emner langt uden for encyklopædiens domæne, skal markeres som uden for scope.
 - Tvivlstilfælde skal markeres som inden for scope — det er bedre at forsøge at finde et svar end at afvise for tidligt.
 - Hvis spørgsmålet er tvetydigt, fortolk det på den måde der mest sandsynligt giver et encyklopædisk relevant svar.
+- Output de mest væsentlige nøgleord fra spørgsmålet, som kan bruges i søgning.
+- Opdel brugerens spørgsmål i dets vigtigste komponenter, hvis det indeholder flere dele.
 
 # Output format
 Returner KUN et JSON-objekt med følgende felter:
 - "interpretation": En klar, præcis sætning der beskriver din fortolkning af brugerens spørgsmål
 - "in_scope": true eller false
 - "reason": En kort forklaring af hvorfor spørgsmålet er inden for eller uden for scope
+- "keywords": En liste af de vigtigste nøgleord fra spørgsmålet, som kan bruges til søgning
+- "subqueries": Hvis spørgsmålet indeholder flere dele, en liste af de vigtigste komponenter eller underforespørgsler der kan udledes fra det
 
 Eksempel på output:
-{{"interpretation": "Brugeren ønsker en forklaring af renæssancens oprindelse i Italien", "in_scope": true, "reason": "Spørgsmålet vedrører en historisk periode, som er inden for encyklopædiens domæne"}}
+{{"interpretation": "Brugeren ønsker en forklaring af renæssancens oprindelse i Italien", "in_scope": true, "reason": "Spørgsmålet vedrører en historisk periode, som er inden for encyklopædiens domæne", "keywords": ["renæssance oprindelse Italien", "renæssance", "Italien historie renæssance"], "subqueries": ["Hvad var renæssancen?", "Hvor og hvordan opstod renæssancen?"]}}
 """
 
 
@@ -547,9 +551,9 @@ _INTERMEDIATE_EXPANSION_SYSTEM = """Du er en søgeekspert for Lex, en dansk ency
 
 # Regler
 - Skriv ALTID på dansk.
-- Semantic queries skal være korte (max 1 til 2 sætninger) — ikke lange hypotetiske tekster.
-- Keyword queries skal bestå af 1 til 3 relevante søgeord pr. forespørgsel. Hvis brugeren spørger til et specifikt emne SKAL det indgå alene som et søgeord i en separat forespørgsel.
-- Brug synonymer, relaterede begreber og alternative formuleringer til at supplere eksisterende søgeord.
+- Semantic queries skal være korte (max 1 sætning) — ikke lange hypotetiske tekster.
+- Keyword queries skal bestå af 1 til 3 relevante søgeord pr. forespørgsel. Tag udgangspunkt i de vigtigste nøgleord og begreber i brugerens spørgsmål, men udvid med synonymer og relaterede termer hvis nødvendigt.
+- Brug feedback fra den tidligere søgning til at informere hvilke aspekter der skal dækkes i de nye forespørgsler.
 - Returner KUN et JSON-objekt med følgende format:
   {"semantic_queries": ["forespørgsel 1", "forespørgsel 2", ...], "keyword_queries": ["søgeord_1", "søgeord_2 søgeord_3", ...]}
 

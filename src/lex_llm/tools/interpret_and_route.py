@@ -22,6 +22,8 @@ def interpret_and_route(
         - query_interpretation: str — the interpreted query
         - is_in_scope: bool — whether the query is within scope
         - routing_reason: str — reason for the routing decision
+        - keywords: list[str] — (optional) extracted keywords for retrieval
+        - subqueries: list[str] — (optional) generated subqueries for retrieval
         - _workflow_done: set to True if out of scope (early termination)
     """
 
@@ -53,6 +55,7 @@ def interpret_and_route(
             for m in messages
         ]
 
+        yield emitter.tool_call("interpret_and_route", {"messages": messages})
         raw_response = await llm_provider.generate(llm_messages)
 
         try:
@@ -60,15 +63,25 @@ def interpret_and_route(
             interpretation = result.get("interpretation", user_input)
             in_scope = result.get("in_scope", True)
             reason = result.get("reason", "")
+            keywords = result.get("keywords", None)
+            subqueries = result.get("subqueries", None)
         except ValueError:
             # Fallback: if JSON parsing fails, assume in scope with raw response
             interpretation = raw_response.strip()
             in_scope = True
             reason = "Kunne ikke fortolke routing-svar — antager inden for scope"
+            keywords = None
+            subqueries = None
+
+        yield emitter.tool_result("interpret_and_route", {"raw_response": raw_response, "interpretation": interpretation, "in_scope": in_scope, "reason": reason, "keywords": keywords, "subqueries": subqueries})
 
         context["query_interpretation"] = interpretation
         context["is_in_scope"] = in_scope
         context["routing_reason"] = reason
+        if keywords is not None:
+            context["keywords"] = keywords
+        if subqueries is not None:
+            context["subqueries"] = subqueries
 
         # Emit the interpretation as a stream event
         yield emitter.interpretation_chunk(interpretation)
