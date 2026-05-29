@@ -79,6 +79,8 @@ def retrieval_cascade(
 
         user_input: str = context.get("user_input", "")
         interpretation: str = context.get("query_interpretation", user_input)
+        keywords: list[str] = context.get("keywords", [user_input])
+        queries: list[str] = context.get("subqueries", [user_input])
 
         connector = LexDBConnector()
         best_chunks: list[LexChunk] = []
@@ -91,18 +93,18 @@ def retrieval_cascade(
         yield emitter.tool_call(
             name="simple_retrieval",
             input_data={
-                "semantic_queries": [user_input],
-                "keyword_queries": [user_input],
+                "semantic_queries": [queries],
+                "keyword_queries": [keywords],
             },
         )
 
         semantic_chunks = await connector.batch_vector_search(
-            queries=[(user_input, TextType.QUERY)],
+            queries=[(q, TextType.QUERY) for q in queries],
             top_k=top_k_semantic,
             index_name=index_name,
         )
         fts_chunks = await connector.batch_fulltext_search(
-            queries=[user_input],
+            queries=keywords,
             top_k=top_k_fts,
             index_name=index_name,
         )

@@ -63,7 +63,7 @@ def search_with_expansion(
             return
 
         user_input: str = context.get("user_input", "")
-        interpretation: str = "Brugerens forespørgsel er en søgning efter artikler relateret til det indtastede."
+        interpretation: str = "Brugerens forespørgsel er en konkret søgning."
 
         connector = LexDBConnector()
 
@@ -170,7 +170,7 @@ async def _expand_queries(
     messages = get_intermediate_expansion_prompt(
         user_input=user_input,
         interpretation=interpretation,
-        relevance_feedback="Første søgning — udvid forespørgslen for at finde relevante artikler",
+        relevance_feedback="Første søgning — tag udgangspunkt i brugerens input og returner de mest væsentlige nøgleord og underspørgsmål, der kan bruges til at finde relevante artikler i databasen.",
     )
     llm_messages = [
         ConversationMessage(role=m["role"], content=m["content"])  # type: ignore
