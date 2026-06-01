@@ -1,9 +1,17 @@
+"""Beta Workflow v4 (fast).
+
+Fast variant of beta_workflow_v3 with latency optimizations:
+- Two-stage retrieval cascade (no HyDE / advanced expansion)
+- Merged eval+expand LLM call between stages
+- Cumulative RRF-fused chunk pool across both stages
+"""
+
 from lex_llm.api.connectors.scaleway_provider import ScalewayProvider
 from datetime import datetime
 
 from lex_llm.tools import interpret_and_route
 from lex_llm.tools.generate_deferral import generate_deferral
-from lex_llm.tools.retrieval_cascade import retrieval_cascade
+from lex_llm.tools.retrieval_cascade_fast import retrieval_cascade_fast
 
 from ..api.orchestrator import Orchestrator
 from ..api.event_models import WorkflowRunRequest
@@ -16,14 +24,14 @@ _llm = ScalewayProvider(model="gemma-4-26b-a4b-it")
 
 
 def get_workflow(request: WorkflowRunRequest) -> Orchestrator:
-    """Configures and returns the RAG workflow orchestrator using Gemma via OpenRouter."""
+    """Configures and returns the fast RAG workflow orchestrator using Gemma via Scaleway."""
 
     return Orchestrator(
         request=request,
         steps=[
             interpret_and_route(llm_provider=_llm),
             generate_deferral(llm_provider=_llm),
-            retrieval_cascade(
+            retrieval_cascade_fast(
                 llm_provider=_llm,
                 index_name="article_embeddings_e5",
                 top_k=25,
@@ -47,12 +55,14 @@ def get_workflow(request: WorkflowRunRequest) -> Orchestrator:
 
 def get_metadata() -> dict:
     return {
-        "workflow_id": "beta_workflow_v3",
-        "name": "Beta Workflow v3",
+        "workflow_id": "beta_workflow_v4_fast",
+        "name": "Beta Workflow v4 (fast)",
         "description": (
-            "Version 3 of the beta workflow using Google Gemma 4 26B "
-            "via Scaleway and the multilingual e5 large embedding model hosted locally. "
-            "Performs a retrieval cascade and generates a chat response with sources."
+            "Fast variant of Beta Workflow v3 using Google Gemma 4 26B "
+            "via Scaleway and the multilingual e5 large embedding model. "
+            "Two-stage retrieval cascade (simple → corrective intermediate) "
+            "with merged eval+expand LLM call between stages and cumulative "
+            "RRF-fused chunk pool. No HyDE / advanced expansion."
         ),
         "steps": [
             {
@@ -74,12 +84,12 @@ def get_metadata() -> dict:
                 "outputs": ["final_response"],
             },
             {
-                "name": "Retrieval Cascade",
+                "name": "Retrieval Cascade (fast)",
                 "description": (
-                    "Three-stage progressive hybrid retrieval: "
-                    "(1) simple_retrieval with raw query, "
-                    "(2) intermediate_retrieval with expanded keywords, "
-                    "(3) advanced_retrieval with HyDE + corrective keyword broadening."
+                    "Two-stage progressive hybrid retrieval: "
+                    "(1) simple_retrieval with keywords/subqueries from interpretation, "
+                    "(2) corrective intermediate search driven by a merged eval+expand LLM call. "
+                    "Cumulative raw result lists are RRF-fused across both stages."
                 ),
                 "inputs": [
                     "user_input",

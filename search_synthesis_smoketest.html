@@ -37,13 +37,16 @@
 <div class="controls">
   <label>Workflow
     <select id="workflowId" style="background:#16213e;border:1px solid #0f3460;color:#e0e0e0;padding:.4rem;border-radius:4px;font-family:inherit;">
+      <option value="search_synthesis_v2_fast">search_synthesis_v2_fast</option>
       <option value="search_synthesis_v1">search_synthesis_v1</option>
+      <option value="beta_workflow_v4_fast">beta_workflow_v4_fast</option>
+      <option value="beta_workflow_v3">beta_workflow_v3</option>
       <option value="intermediate_search_v1">intermediate_search_v1</option>
       <option value="simple_search_v1">simple_search_v1</option>
     </select>
   </label>
   <label>API Base URL
-    <input type="text" id="baseUrl" value="http://localhost:8001">
+    <input type="text" id="baseUrl" value="http://localhost:8011">
   </label>
   <label>User Input
     <textarea id="userInput">Hvad kan du fortælle mig om Kronborg?</textarea>

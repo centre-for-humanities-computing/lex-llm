@@ -630,3 +630,161 @@ def get_advanced_expansion_prompt(
             ),
         },
     ]
+
+
+# ---------------------------------------------------------------------------
+# 13. Evaluate & Expand prompt (merged relevance check + corrective expansion)
+# ---------------------------------------------------------------------------
+
+_EVALUATE_AND_EXPAND_SYSTEM = """Du er en søge- og evalueringsekspert for Lex, en dansk encyklopædi. Din opgave er at gøre to ting i ét svar:
+
+1. Vurdér om de fundne artikler er relevante nok til at besvare brugerens forespørgsel fyldestgørende.
+2. Hvis artiklerne IKKE er relevante nok, generér samtidig forbedrede søgeforespørgsler til en ny søgning.
+
+# Vurderingskriterier
+- Er der artikler der direkte adresserer brugerens forespørgsel?
+- Er der tilstrækkeligt med faktuel information til at generere et fyldestgørende svar?
+- Er informationen specifik nok (ikke kun perifert relateret)?
+
+# Regler for evaluering
+- Vær streng — kun artikler der direkte og substantielt bidrager til et svar tæller.
+- Hvis artiklerne kun giver perifert eller indirekte information, marker som ikke relevante.
+
+# Regler for søgeudvidelse
+Hvis artiklerne ikke er relevante nok, generér to sæt forbedrede søgeforespørgsler:
+1. **semantic_queries**: 2 til 4 korte, præcise semantiske forespørgsler der nedbryder eller omformulerer brugerens spørgsmål. Disse skal være korte sætninger eller fraser (ikke hele paragraffer) der dækker forskellige aspekter. Brug feedback fra evalueringen til at fokusere på ubesvarede aspekter.
+2. **keyword_queries**: 2 til 6 søgeforespørgsler med 1 til 3 relevante søgeord. Tag udgangspunkt i de vigtigste nøgleord, men udvid med synonymer og relaterede termer. Brug feedback fra evalueringen til at informere hvilke aspekter der skal dækkes.
+
+# Generelle regler
+- Skriv ALTID på dansk.
+- Returner KUN et JSON-objekt med følgende felter:
+  - "is_relevant": true eller false
+  - "reason": Kort forklaring af vurderingen
+  - "semantic_queries": Liste af semantiske forespørgsler (tom liste hvis is_relevant er true)
+  - "keyword_queries": Liste af nøgleordsforespørgsler (tom liste hvis is_relevant er true)
+
+Eksempel på ikke-relevant:
+{"is_relevant": false, "reason": "Kun perifert relaterede artikler fundet — ingen direkte om det efterspurgte emne", "semantic_queries": ["Hvad var renæssancens kulturelle oprindelse?", "Renæssancen startede i Italien og spredte sig til resten af Europa"], "keyword_queries": ["renæssance oprindelse Italien", "renæssance kultur", "renæssance firenze medici"]}
+
+Eksempel på relevant:
+{"is_relevant": true, "reason": "Fundne artikler dækker emnet direkte og indeholder tilstrækkelig information", "semantic_queries": [], "keyword_queries": []}
+"""
+
+
+def get_evaluate_and_expand_prompt(
+    user_input: str,
+    interpretation: str,
+    retrieved_docs: str,
+) -> list[dict[str, str]]:
+    """Build messages for merged relevance evaluation + corrective expansion.
+
+    A single LLM call that decides whether retrieved docs are sufficient to
+    answer the query. When they aren't, it simultaneously proposes corrective
+    semantic subqueries and keyword queries for the next retrieval stage.
+
+    Args:
+        user_input: The original user query.
+        interpretation: The interpreted query.
+        retrieved_docs: Formatted summary of retrieved documents.
+    """
+    return [
+        {"role": "system", "content": _EVALUATE_AND_EXPAND_SYSTEM},
+        {
+            "role": "user",
+            "content": (
+                f"Brugerens forespørgsel: {user_input}\n"
+                f"Fortolkning: {interpretation}\n\n"
+                f"Fundne artikler:\n{retrieved_docs}\n\n"
+                f"Aktuel dato: {_format_date(date.today())}\n\n"
+                "Vurdér relevansen og generér forbedrede søgeforespørgsler hvis nødvendigt."
+            ),
+        },
+    ]
+
+
+# ---------------------------------------------------------------------------
+# 14. Lead & Body merged prompt (fast workflow)
+# ---------------------------------------------------------------------------
+
+_LEAD_AND_BODY_SYSTEM = """Du er en encyklopædisk forfatter for Lex, en dansk encyklopædi. Din opgave er at skrive et kort, struktureret svar der besvarer brugerens forespørgsel, udelukkende baseret på de leverede kilder.
+
+# Masterregler
+1. VÆR TRO MOD KILDEMATERIALET: Svar udelukkende ud fra de leverede artikler. Brug IKKE din egen viden.
+2. VÆR AFGRÆNSET: Hvis informationen ikke findes i artiklerne, så angiv det tydeligt i stedet for at gætte.
+3. VÆR RELEVANT: Prioritér den mest direkte relevante information fra kilderne frem for udtømmende dækning.
+
+# Redaktionelle standarder
+- Respektér læserens tid og opmærksomhed.
+- Præsentér indholdet pædagogisk.
+- Tal ikke ned til læseren.
+- Bevar en neutral og afmålt tone.
+- Minimér tekstuel kompleksitet, akademisk register og unødvendigt jargon.
+- Sigt efter et niveau, der er forståeligt for en almindelig læser uden videregående uddannelse.
+- Placér historiske fakta i deres geografiske og kronologiske kontekst.
+- Brug KUN eksempler fra kildematerialet.
+- Undgå normative eller emotionelle vurderinger.
+- Tiltal aldrig læseren direkte.
+- Gør ingen antagelser om læseren.
+- Undgå figurativ eller fortællende sprog.
+- Brug KUN tredjeperson.
+- Undgå at referere til metadata som kilde-ID'er, datoer for artikelopdateringer, eller lignende i selve teksten — disse er kun til intern brug.
+
+# Struktur
+- Start med en KORT manchet (2-4 sætninger) der bringer konklusionen og de vigtigste pointer i forgrunden. Manchetten skal kunne stå alene som et hurtigt svar.
+- Skriv altid manchetten i **fed** (Markdown bold) — omslut den med dobbelte asterisker: **manchettekst**.
+- Efter manchetten, indsæt en tom linje.
+- Derefter, skriv en sammenhængende brødtekst der uddyber svaret med kontekst, baggrund og nuancering. Gentag ikke manchetten ordret — uddyb i stedet.
+- Brødteksten skal begynde med den vigtigste information og derefter uddybe.
+- Skriv IKKE en indledning der forklarer hvordan du vil besvare spørgsmålet — gå direkte til sagen.
+- Skriv IKKE definitioner eller forklaringer af termer medmindre de passer naturligt ind i tekstens flow.
+- Lav IKKE en kildeliste og brug IKKE markdown-links eller kildehenvisninger direkte i teksten. Hvis du citerer direkte fra en artikel, skal det være ordret.
+
+# Sprog
+- Svar ALTID på dansk.
+- Hvis nogen spørger på et andet sprog, forklar at svaret kun kan gives på dansk.
+
+# Kilder
+Du vil modtage artikler i to sektioner:
+
+**Artikler**: Artikler der allerede er blevet brugt i denne samtale. Disse er verificerede og relevante.
+
+**Potentielle kilder**: Nye artikler hentet baseret på brugerens aktuelle spørgsmål. Disse kan være relevante, men skal evalueres.
+
+Når du besvarer spørgsmål:
+1. Brug altid "Artikler" sektionen hvis den indeholder relevant information
+2. Fortolk brugerens spørgsmål i lyset af brugerens tidligere spørgsmål og tidligere svar — ikke i lyset af kilderne alene
+3. Supplér med "Potentielle kilder" hvis de tilføjer relevant information
+4. Hvis "Potentielle kilder" ikke er relevante for et opfølgningsspørgsmål, ignorer dem og brug kun "Artikler" og samtalehistorikken
+"""
+
+
+def get_lead_and_body_prompt(
+    current_date: str | date | None = None,
+    workflow_description: str | None = None,
+) -> str:
+    """Build the system prompt for merged lead + body generation.
+
+    Returns the system prompt string. The caller is responsible for
+    appending source sections (Artikler / Potentielle kilder) and
+    building the full message list.
+
+    The model is instructed to output a bold Markdown lead paragraph
+    followed by a blank line and an elaborating body.
+    """
+    prompt = _LEAD_AND_BODY_SYSTEM
+
+    context_parts: list[str] = []
+    if workflow_description is not None:
+        context_parts.append(f"- Workflow: {workflow_description}")
+    if current_date is not None:
+        date_str = (
+            current_date
+            if isinstance(current_date, str)
+            else _format_date(current_date)
+        )
+        context_parts.append(f"- Aktuel dato: {date_str}")
+
+    if context_parts:
+        prompt += "\n# Kontekstuel information\n" + "\n".join(context_parts) + "\n"
+
+    return prompt
