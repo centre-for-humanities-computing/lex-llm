@@ -226,7 +226,7 @@ def retrieval_cascade_fast(
         # ---------------------------------------------------------------- #
         # Final relevance evaluation (terminal — no further expansion)      #
         # ---------------------------------------------------------------- #
-        async for result in _run_relevance_evaluation( # type: ignore
+        async for result in _run_relevance_evaluation(  # type: ignore
             llm_provider=llm_provider,
             user_input=user_input,
             interpretation=interpretation,
