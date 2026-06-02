@@ -85,9 +85,15 @@ def get_metadata() -> dict:
         "steps": [
             {
                 "name": "Interpret & Route",
-                "description": "Interprets the user query and determines if it's within scope.",
+                "description": "Interprets the user query and determines if it's within scope. Returns lists of keywords and subqueries for retrieval.",
                 "inputs": ["user_input"],
-                "outputs": ["query_interpretation", "is_in_scope", "routing_reason"],
+                "outputs": [
+                    "query_interpretation",
+                    "is_in_scope",
+                    "routing_reason",
+                    "keywords",
+                    "subqueries",
+                ],
             },
             {
                 "name": "Generate Deferral",
@@ -103,7 +109,12 @@ def get_metadata() -> dict:
                     "(2) intermediate_retrieval with expanded keywords, "
                     "(3) advanced_retrieval with HyDE + corrective keyword broadening."
                 ),
-                "inputs": ["user_input", "query_interpretation"],
+                "inputs": [
+                    "user_input",
+                    "query_interpretation",
+                    "keywords",
+                    "subqueries",
+                ],
                 "outputs": ["retrieved_docs", "insufficient_context"],
             },
             {
