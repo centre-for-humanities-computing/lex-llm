@@ -1,101 +1,64 @@
 # llm/routing_provider.py
-import asyncio
-import time
 import logging
 from typing import AsyncGenerator, List
 from ..event_models import ConversationMessage
 from .llm_provider import LLMProvider
-from .dgx_provider import DGXProvider, DGXOverloadedError
-from .scaleway_provider import ScalewayProvider
-from ..vllm_health_monitor import VLLMHealthMonitor
+from .vllm_load_probe import VLLMLoadProbe
 
 logger = logging.getLogger(__name__)
 
+
 class RoutingLLMProvider(LLMProvider):
+    """Routes requests to a local vLLM backend, falling back to a cloud
+    provider when the local backend is overloaded or unreachable.
+
+    Decision flow
+    -------------
+    1. Probe the vLLM ``/metrics`` endpoint.  If overloaded (queue
+       depth or token generation speed exceed thresholds), stream
+       directly from the fallback.
+    2. Otherwise try the primary.  If it raises **before** yielding
+       the first token, catch the error, log it, and stream from the
+       fallback instead.
+    3. If the primary fails **after** at least one token has been
+       yielded, the exception propagates (no mid-stream failover).
+    """
 
     def __init__(
         self,
         primary: LLMProvider,
         fallback: LLMProvider,
-        monitor: VLLMHealthMonitor,
-        *,
-        trip_after: int = 2,        # N overload signals before tripping
-        recover_after: int = 5,     # M healthy signals before recovering
-    ):
+        probe: VLLMLoadProbe,
+    ) -> None:
         self.primary = primary
         self.fallback = fallback
-        self.monitor = monitor
-        self.trip_after = trip_after
-        self.recover_after = recover_after
-
-        self._overload_streak = 0
-        self._healthy_streak = 0
-        self._using_fallback = False
-        self._state_lock = asyncio.Lock()
-
-    async def _pick_backend(self) -> tuple[LLMProvider, str]:
-        overloaded, reason = await self.monitor.is_overloaded()
-
-        async with self._state_lock:
-            if overloaded:
-                self._overload_streak += 1
-                self._healthy_streak = 0
-                if (
-                    not self._using_fallback
-                    and self._overload_streak >= self.trip_after
-                ):
-                    self._using_fallback = True
-                    logger.warning(f"Tripping to fallback: {reason}")
-            else:
-                self._healthy_streak += 1
-                self._overload_streak = 0
-                if (
-                    self._using_fallback
-                    and self._healthy_streak >= self.recover_after
-                ):
-                    self._using_fallback = False
-                    logger.info("Primary recovered, routing back to it")
-
-            if self._using_fallback:
-                return self.fallback, f"fallback ({reason})"
-            return self.primary, "primary"
+        self.probe = probe
 
     async def generate_stream(
         self, messages: List[ConversationMessage]
     ) -> AsyncGenerator[str, None]:
-        backend, why = await self._pick_backend()
-        logger.debug(f"Routing to {backend.__class__.__name__}: {why}")
+        overloaded, reason = await self.probe.is_overloaded()
+        if overloaded:
+            logger.info("Routing to fallback: %s", reason)
+            async for chunk in self.fallback.generate_stream(messages):
+                yield chunk
+            return
 
-        # If we picked the primary, be ready to fail over mid-stream.
-        if backend is self.primary:
-            tokens_yielded = 0
-            try:
-                async for chunk in backend.generate_stream(messages):
-                    tokens_yielded += 1
-                    yield chunk
-                return
-            except DGXOverloadedError as e:
-                if tokens_yielded > 0:
-                    # We've already sent partial output to the user — restarting on
-                    # cloud would produce a discontinuous response. Best to surface
-                    # a clear signal and let the caller decide.
-                    logger.error(
-                        f"Primary degraded mid-stream after {tokens_yielded} tokens: {e}. "
-                        f"Cannot transparently fail over."
-                    )
-                    raise
-                logger.warning(f"Primary failed before first token: {e}. Failing over.")
-                # Force-trip so subsequent requests skip the probe
-                async with self._state_lock:
-                    self._using_fallback = True
-                    self._overload_streak = self.trip_after
-            except Exception as e:
-                if tokens_yielded > 0:
-                    raise
-                logger.exception(f"Primary hard failure: {e}. Failing over.")
+        stream = self.primary.generate_stream(messages)
+        try:
+            first = await stream.__anext__()
+        except StopAsyncIteration:
+            # Primary produced no tokens — benign empty response.
+            return
+        except Exception:
+            logger.exception("Primary failed before first token; failing over")
+            async for chunk in self.fallback.generate_stream(messages):
+                yield chunk
+            return
 
-        # Fallback path
-        async for chunk in self.fallback.generate_stream(messages):
+        # Primary succeeded — yield the first chunk, then the rest.
+        yield first
+        async for chunk in stream:
             yield chunk
 
     async def generate(self, messages: List[ConversationMessage]) -> str:

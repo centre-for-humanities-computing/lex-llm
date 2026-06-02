@@ -17,13 +17,14 @@ All LLM calls use the DGX Spark with gemma-4-26B-A4B-it and fallback to Scaleway
 from lex_llm.api.connectors.dgx_provider import DGXProvider
 from lex_llm.api.connectors.routing_llm_provider import RoutingLLMProvider
 from lex_llm.api.connectors.scaleway_provider import ScalewayProvider
+from lex_llm.api.connectors.vllm_load_probe import VLLMLoadProbe
 
 from ..api.orchestrator import Orchestrator, ParallelStep
 from ..api.event_models import WorkflowRunRequest
 from ..tools import (
     interpret_and_route,
     generate_deferral,
-    search_and_validate,
+    retrieval_cascade,
     generate_answer_body,
     generate_lead_paragraph,
     generate_definitions,
@@ -31,12 +32,17 @@ from ..tools import (
 )
 from ..prompts_search_synthesis import get_answer_body_prompt
 from datetime import date
+import os
 
 # Shared LLM provider for all steps
+_model_name = "gemma-4-26B-A4B-it"
+_metrics_url = f"{os.environ['METRICS_SERVER_URL']}/metrics/{_model_name}"
+_probe = VLLMLoadProbe(_metrics_url, model_name=_model_name)
+
 _llm = RoutingLLMProvider(
-    primary=DGXProvider(model="gemma-4-26B-A4B-it"),
+    primary=DGXProvider(model=_model_name),
     fallback=ScalewayProvider(model="gemma-4-26b-a4b-it"),
-    monitor=monitor,
+    probe=_probe,
 )
 
 
@@ -48,7 +54,7 @@ def get_workflow(request: WorkflowRunRequest) -> Orchestrator:
         steps=[
             interpret_and_route(llm_provider=_llm),
             generate_deferral(llm_provider=_llm),
-            search_and_validate(
+            retrieval_cascade(
                 llm_provider=_llm,
                 index_name="article_embeddings_e5",
                 top_k=25,
@@ -102,7 +108,7 @@ def get_metadata() -> dict:
                 "outputs": ["final_response"],
             },
             {
-                "name": "Search & Validate",
+                "name": "Retrieval Cascade",
                 "description": (
                     "Three-stage progressive hybrid retrieval: "
                     "(1) simple_retrieval with raw query, "
