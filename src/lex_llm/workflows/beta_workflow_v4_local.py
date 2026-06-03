@@ -46,6 +46,7 @@ _llm_small = RoutingLLMProvider(
     probe=_probe_small,
 )
 
+
 def get_workflow(request: WorkflowRunRequest) -> Orchestrator:
     """Configures and returns the fast RAG workflow orchestrator using Gemma via Scaleway."""
 
@@ -81,7 +82,7 @@ def get_metadata() -> dict:
         "workflow_id": "beta_workflow_v4_local",
         "name": "Beta Workflow v4 (fast) local version",
         "description": (
-            "Fast variant of Beta Workflow v3 using Google Gemma 4 26B and 4 " 
+            "Fast variant of Beta Workflow v3 using Google Gemma 4 26B and 4 "
             "E2B via local DGX Spark with Gemma 4 26B A4B on Scaleway as backup. "
             "Generates a response with sources in a single streaming LLM call, "
             "and uses the multilingual e5 large embedding model for search. "

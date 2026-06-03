@@ -212,7 +212,12 @@ def generate_response_with_sources(
         # Emit only the newly used sources (not the ones already in Artikler)
         yield emitter.sources(
             [
-                Source(id=src.id, title=src.title, url=src.url if src.url else "", highlight=src.highlight)
+                Source(
+                    id=src.id,
+                    title=src.title,
+                    url=src.url if src.url else "",
+                    highlight=src.highlight,
+                )
                 for src in newly_used_sources
             ]
         )

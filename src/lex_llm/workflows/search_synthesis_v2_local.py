@@ -55,6 +55,7 @@ _llm_small = RoutingLLMProvider(
     probe=_probe_small,
 )
 
+
 def get_workflow(request: WorkflowRunRequest) -> Orchestrator:
     """Configures and returns the Search & Synthesis v2 (fast) workflow orchestrator."""
 

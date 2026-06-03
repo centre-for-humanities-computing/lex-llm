@@ -8,6 +8,7 @@ from .llm_provider import LLMProvider
 
 logger = logging.getLogger(__name__)
 
+
 class DGXProvider(LLMProvider):
     """Talks to the DGX Spark via the nginx-fronted vLLM OpenAI endpoint.
 
