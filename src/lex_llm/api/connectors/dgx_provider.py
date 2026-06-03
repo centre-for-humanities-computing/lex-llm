@@ -1,4 +1,5 @@
 # llm/dgx_provider.py
+import contextvars
 import logging
 import os
 from typing import AsyncGenerator, List
@@ -7,6 +8,21 @@ from ..event_models import ConversationMessage
 from .llm_provider import LLMProvider
 
 logger = logging.getLogger(__name__)
+
+# Context variable for trace ID propagation to the inference server
+_run_id: contextvars.ContextVar[str | None] = contextvars.ContextVar(
+    "_dgx_run_id", default=None
+)
+
+
+def set_run_id(run_id: str | None) -> None:
+    """Set the run ID for the current async task.
+
+    Called by the orchestrator before invoking steps so that DGXProvider
+    can propagate the ID as an ``X-Lex-Run-Id`` header to nginx access logs.
+    """
+    if run_id:
+        _run_id.set(run_id)
 
 
 class DGXProvider(LLMProvider):
@@ -32,6 +48,8 @@ class DGXProvider(LLMProvider):
         self, messages: List[ConversationMessage]
     ) -> AsyncGenerator[str, None]:
         messages_dicts = [m.model_dump() for m in messages]
+        run_id = _run_id.get()
+        extra_headers = {"X-Lex-Run-Id": run_id} if run_id else {}
         stream = await litellm.acompletion(
             model=self.model,
             messages=messages_dicts,
@@ -40,6 +58,7 @@ class DGXProvider(LLMProvider):
             api_key="not-needed",
             timeout=30,
             custom_llm_provider="openai",
+            extra_headers=extra_headers,
         )
         async for chunk in stream:  # type: ignore
             content = chunk.choices[0].delta.content

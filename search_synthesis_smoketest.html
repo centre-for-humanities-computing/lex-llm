@@ -26,6 +26,11 @@
   .section h2 .count { color: #aaa; font-weight: normal; }
   .section pre { white-space: pre-wrap; word-break: break-word; font-size: .8rem; line-height: 1.4; }
   .section .empty { color: #555; font-style: italic; font-size: .8rem; }
+  .metrics-card { background: #0d1b3e; border: 1px solid #00d4ff33; border-radius: 4px; padding: .5rem; margin: .25rem 0; }
+  .metrics-header { font-size: .85rem; font-weight: bold; margin-bottom: .25rem; }
+  .metrics-table { width: 100%; font-size: .8rem; border-collapse: collapse; }
+  .metrics-table td { padding: .1rem .3rem; }
+  .metrics-table td.num { text-align: right; color: #00d4ff; font-variant-numeric: tabular-nums; }
   .raw-log { grid-column: 1 / -1; max-height: 300px; }
   .raw-log pre { font-size: .7rem; color: #888; }
 </style>
@@ -71,6 +76,7 @@
   <div class="section" id="sec-answer_body"><h2>answer_body <span class="count"></span></h2><div class="empty">— no events yet —</div></div>
   <div class="section" id="sec-definitions"><h2>definitions <span class="count"></span></h2><div class="empty">— no events yet —</div></div>
   <div class="section" id="sec-sources"><h2>sources <span class="count"></span></h2><div class="empty">— no events yet —</div></div>
+  <div class="section" id="sec-workflow_metrics"><h2>workflow_metrics <span class="count"></span></h2><div class="empty">— no events yet —</div></div>
   <div class="section" id="sec-text_chunk"><h2>text_chunk <span class="count"></span></h2><div class="empty">— no events yet —</div></div>
   <div class="section" id="sec-reasoning_chunk"><h2>reasoning_chunk <span class="count"></span></h2><div class="empty">— no events yet —</div></div>
   <div class="section" id="sec-error"><h2>error <span class="count"></span></h2><div class="empty">— no events yet —</div></div>
@@ -81,7 +87,7 @@
 const EVENT_SECTIONS = [
   "control_flow","tool_call",
   "interpretation","lead_paragraph","answer_body","definitions",
-  "sources","text_chunk","reasoning_chunk","error"
+  "sources","workflow_metrics","text_chunk","reasoning_chunk","error"
 ];
 
 const STREAMING_EVENTS = new Set([
@@ -126,7 +132,17 @@ function formatControlFlowLine(eventType, data, timestamp) {
   const status = data.status || "?";
   const icons = { started: "▶", in_progress: "⏳", completed: "✓", failed: "✗" };
   const icon = icons[status] || "·";
-  return `${prefix}${icon} ${name} ${status}`;
+  let line = `${prefix}${icon} ${name} ${status}`;
+  // Append duration and backend info when available
+  if (data.output && data.output.duration_ms != null) {
+    line += `  ${data.output.duration_ms.toFixed(0)}ms`;
+    if (data.output.llm_calls && data.output.llm_calls.length > 0) {
+      const backends = data.output.llm_calls.map(c => c.backend).join(",");
+      line += ` [${backends}]`;
+    }
+  }
+  if (data.error) line += `  ERROR: ${data.error}`;
+  return line;
 }
 
 function appendToSection(eventType, content, rawData, timestamp) {
@@ -164,6 +180,26 @@ function appendToSection(eventType, content, rawData, timestamp) {
     const pre = document.createElement("pre");
     pre.textContent = formatControlFlowLine(eventType, rawData, timestamp);
     container.appendChild(pre);
+    container.scrollTop = container.scrollHeight;
+  } else if (eventType === "workflow_metrics") {
+    // Render a compact metrics summary card
+    const div = document.createElement("div");
+    div.className = "metrics-card";
+    const d = rawData || {};
+    const outcomeIcons = { ok: "✓", error: "✗", deferral: "↩" };
+    const outcomeIcon = outcomeIcons[d.outcome] || "·";
+    let html = `<div class="metrics-header">${outcomeIcon} ${d.outcome}</div>
+      <table class="metrics-table">
+        <tr><td>e2e</td><td class="num">${d.e2e_ms != null ? d.e2e_ms.toFixed(1) : "—"} ms</td></tr>
+        <tr><td>TTFT (any)</td><td class="num">${d.ttft_any_ms != null ? d.ttft_any_ms.toFixed(1) : "—"} ms</td></tr>
+        <tr><td>TTFT (answer)</td><td class="num">${d.ttft_answer_ms != null ? d.ttft_answer_ms.toFixed(1) : "—"} ms</td></tr>
+        <tr><td>Steps</td><td class="num">${d.step_count != null ? d.step_count : "—"}</td></tr>`;
+    if (d.backend_summary && Object.keys(d.backend_summary).length > 0) {
+      html += `<tr><td>Backends</td><td class="num">${Object.entries(d.backend_summary).map(([k, v]) => `${k}: ${v}`).join(", ")}</td></tr>`;
+    }
+    html += `</table>`;
+    div.innerHTML = html;
+    container.appendChild(div);
     container.scrollTop = container.scrollHeight;
   } else {
     const pre = document.createElement("pre");

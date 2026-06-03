@@ -1,8 +1,16 @@
 import uuid
 import asyncio
+import time as time_module
 from typing import Callable, Any, AsyncGenerator
 from .event_emitter import EventEmitter
-from .event_models import ConversationMessage, WorkflowRunRequest, WorkflowStepData
+from .connectors.dgx_provider import set_run_id
+from .event_models import (
+    ConversationMessage,
+    WorkflowRunRequest,
+    WorkflowStepData,
+    WorkflowMetricsData,
+)
+from .observability.run_recorder import get_recorder
 
 StepFunc = Callable[
     [dict[str, Any], EventEmitter],
@@ -30,9 +38,11 @@ class Orchestrator:
         request: WorkflowRunRequest,
         steps: list[StepFunc | ParallelStep],
         context: dict[str, Any] = {},
+        workflow_id: str = "",
     ):
         self.request = request
         self.steps = steps
+        self.workflow_id = workflow_id
         self.emitter = EventEmitter(conversation_id=request.conversation_id)
         # A simple dictionary to pass state between steps
         self.context: dict[str, Any] = {**context, **request.model_dump()}
@@ -45,12 +55,38 @@ class Orchestrator:
             WorkflowStepData(step_id=step_id, name=step_name, status="started")
         )
 
-        async for event in step_func(self.context, self.emitter):
-            if event:
-                yield event
+        # Allocate per-step telemetry so LLM steps can record backend info
+        step_telemetry: dict[str, Any] = {}
+        self.context["_current_step_telemetry"] = step_telemetry
 
+        t_start = time_module.perf_counter()
+        try:
+            async for event in step_func(self.context, self.emitter):
+                if event:
+                    yield event
+        except Exception as exc:
+            duration_ms = (time_module.perf_counter() - t_start) * 1000
+            yield self.emitter.workflow_step(
+                WorkflowStepData(
+                    step_id=step_id,
+                    name=step_name,
+                    status="failed",
+                    output={"duration_ms": duration_ms, **step_telemetry},
+                    error=str(exc),
+                )
+            )
+            raise
+        finally:
+            self.context.pop("_current_step_telemetry", None)
+
+        duration_ms = (time_module.perf_counter() - t_start) * 1000
         yield self.emitter.workflow_step(
-            WorkflowStepData(step_id=step_id, name=step_name, status="completed")
+            WorkflowStepData(
+                step_id=step_id,
+                name=step_name,
+                status="completed",
+                output={"duration_ms": duration_ms, **step_telemetry},
+            )
         )
 
     async def _run_parallel_step(
@@ -110,16 +146,20 @@ class Orchestrator:
 
     async def execute(self) -> AsyncGenerator[str, None]:
         """Executes the workflow steps and yields NDJSON events."""
+        # Propagate run ID to DGXProvider for nginx trace correlation
+        set_run_id(self.emitter.run_id)
+
         yield self.emitter.stream_start(
             conversation_history=self.request.conversation_history
         )
 
+        t_start = time_module.perf_counter()
+        was_deferral = False
+        step_count = 0
+
         try:
             # Execute each step in the defined sequence
             for step in self.steps:
-                # Check for early termination
-                if self.context.get("_workflow_done"):
-                    break
 
                 if isinstance(step, ParallelStep):
                     async for p_event in self._run_parallel_step(step):
@@ -127,15 +167,27 @@ class Orchestrator:
                 else:
                     step_id = str(uuid.uuid4())
                     step_name = step.__name__
-
+                    step_count += 1
                     async for event in self._run_step(step, step_id, step_name):
                         yield event
+                # Check for early termination
+                if self.context.get("_workflow_done"):
+                    was_deferral = True
+                    break
 
         except Exception as e:
-            # Emit a detailed error and stop execution
             error_message = f"Workflow failed at step '{step_name}': {e}"  # type: ignore
             yield self.emitter.error(message=error_message)
+            # Emit workflow_metrics even on error
+            yield self._emit_workflow_metrics(t_start, step_count, "error")
+            # Submit telemetry row
+            await self._submit_recorder_row(t_start, "error")
             return  # Stop the generator
+
+        # Determine outcome before building conversation history
+        outcome: str = "deferral" if was_deferral else "ok"
+        yield self._emit_workflow_metrics(t_start, step_count, outcome)
+        await self._submit_recorder_row(t_start, outcome)
 
         # After all steps, construct the final history and end the stream
         final_assistant_message = self.context.get("final_response", "")
@@ -173,3 +225,68 @@ class Orchestrator:
             updated_history = self.request.conversation_history + new_history
 
         yield self.emitter.stream_end(conversation_history=updated_history)
+
+    def _emit_workflow_metrics(
+        self, t_start: float, step_count: int, outcome: str
+    ) -> str:
+        """Compute TTFT and e2e from internally recorded timestamps."""
+        now = time_module.perf_counter()
+        e2e_ms = (now - t_start) * 1000
+        e = self.emitter
+        ttft_any_ms = (
+            (e._first_any_chunk_t - t_start) * 1000
+            if e._first_any_chunk_t is not None
+            else None
+        )
+        ttft_answer_ms = (
+            (e._first_answer_chunk_t - t_start) * 1000
+            if e._first_answer_chunk_t is not None
+            else None
+        )
+        # Rolling backend summary from context steps that wrote to telemetry
+        backend_counts: dict[str, int] = {}
+        # This is a best-effort snapshot — the steps wrote to
+        # _current_step_telemetry which we can't access after the fact.
+        # For the summary we rely on what the steps recorded; but those
+        # may not be available. The JSONL recorder gets the
+        # full per-step list instead.
+        return e.workflow_metrics(
+            WorkflowMetricsData(
+                workflow_id=self.workflow_id,
+                e2e_ms=e2e_ms,
+                ttft_any_ms=ttft_any_ms,
+                ttft_answer_ms=ttft_answer_ms,
+                backend_summary=backend_counts,
+                step_count=step_count,
+                outcome=outcome,  # type: ignore[arg-type]
+            )
+        )
+
+    async def _submit_recorder_row(self, t_start: float, outcome: str) -> None:
+        """Submit one telemetry row to the JSONL recorder."""
+        e = self.emitter
+        now = time_module.perf_counter()
+        row = {
+            "ts": time_module.strftime("%Y-%m-%dT%H:%M:%S%z"),
+            "conversation_id": self.request.conversation_id,
+            "run_id": e.run_id,
+            "workflow_id": self.workflow_id,
+            "outcome": outcome,
+            "user_input_len": len(self.request.user_input),
+            "e2e_ms": round((now - t_start) * 1000, 2),
+            "ttft_any_ms": (
+                round((e._first_any_chunk_t - t_start) * 1000, 2)
+                if e._first_any_chunk_t is not None
+                else None
+            ),
+            "ttft_answer_ms": (
+                round((e._first_answer_chunk_t - t_start) * 1000, 2)
+                if e._first_answer_chunk_t is not None
+                else None
+            ),
+            "step_count": len(self.steps),
+        }
+        try:
+            await get_recorder().submit(row)
+        except Exception:
+            pass

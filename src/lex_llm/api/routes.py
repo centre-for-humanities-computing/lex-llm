@@ -8,6 +8,7 @@ from .workflow_utils import (
     get_workflow_module,
     get_all_workflow_metadata,
 )
+from .observability.run_recorder import get_recorder
 
 router = APIRouter()
 
@@ -27,11 +28,21 @@ async def run_workflow(
             },
         )
     orchestrator = mod.get_workflow(request)
+    orchestrator.workflow_id = workflow_id
     return StreamingResponse(
         orchestrator.execute(),
         media_type="application/x-ndjson",
         headers={"Cache-Control": "no-cache"},
     )
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
+    """Start the RunRecorder on boot, drain on shutdown."""
+    recorder = get_recorder()
+    await recorder.start()
+    yield
+    await recorder.stop()
 
 
 @router.get("/workflows/metadata")
@@ -57,15 +68,6 @@ async def workflow_metadata(workflow_id: str) -> JSONResponse:
 @router.get("/health")
 async def health_check() -> JSONResponse:
     return JSONResponse(content={"status": "healthy"})
-
-
-@asynccontextmanager
-async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
-    # Startup
-    print("Starting AI Orchestration Service")
-    yield
-    # Shutdown
-    print("Shutting down AI Orchestration Service")
 
 
 router.lifespan_context = lifespan

@@ -45,7 +45,10 @@ def generate_deferral(
             for m in messages
         ]
 
-        deferral_message = await llm_provider.generate(llm_messages)
+        telemetry = context.get("_current_step_telemetry", {})
+
+        async with llm_provider.observe(telemetry=telemetry):
+            deferral_message = await llm_provider.generate(llm_messages)
         deferral_message = deferral_message.strip()
 
         # Emit as lead paragraph (the only content for out-of-scope queries)

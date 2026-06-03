@@ -149,7 +149,11 @@ def retrieval_cascade_fast(
                 ConversationMessage(role=m["role"], content=m["content"])  # type: ignore
                 for m in messages
             ]
-            eval_response = await llm_provider.generate(llm_messages)
+
+            telemetry = context.get("_current_step_telemetry", {})
+
+            async with llm_provider.observe(telemetry=telemetry):
+                eval_response = await llm_provider.generate(llm_messages)
 
             try:
                 result = parse_json_response(eval_response)

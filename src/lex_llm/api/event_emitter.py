@@ -1,10 +1,12 @@
 from typing import Any, Dict, List, Optional
 import uuid
+import time
 from datetime import datetime, timezone
 from .event_models import (
     Source,
     StreamEvent,
     WorkflowStepData,
+    WorkflowMetricsData,
     ConversationMessage,
     StreamStartData,
     StreamEndData,
@@ -19,6 +21,23 @@ class EventEmitter:
     def __init__(self, conversation_id: str, run_id: Optional[str] = None):
         self.conversation_id = conversation_id
         self.run_id = run_id or str(uuid.uuid4())
+        # Monotonic timestamps for TTFT measurement
+        self._first_any_chunk_t: float | None = None
+        self._first_answer_chunk_t: float | None = None
+        self._chunk_event_names = {
+            "text_chunk",
+            "lead_paragraph",
+            "answer_body",
+            "interpretation",
+        }
+        self._answer_event_names = {"text_chunk"}
+
+    def _mark_first_chunk(self, event: str) -> None:
+        now = time.monotonic()
+        if event in self._chunk_event_names and self._first_any_chunk_t is None:
+            self._first_any_chunk_t = now
+        if event in self._answer_event_names and self._first_answer_chunk_t is None:
+            self._first_answer_chunk_t = now
 
     def emit(self, event: str, data: Any = None) -> str:
         event_obj = StreamEvent(
@@ -47,6 +66,7 @@ class EventEmitter:
         return self.emit("stream_start", data)
 
     def text_chunk(self, text: str) -> str:
+        self._mark_first_chunk("text_chunk")
         return self.emit("text_chunk", text)
 
     def reasoning_chunk(self, text: str) -> str:
@@ -54,20 +74,27 @@ class EventEmitter:
 
     def lead_paragraph_chunk(self, text: str) -> str:
         """Emits a lead paragraph text chunk."""
+        self._mark_first_chunk("lead_paragraph")
         return self.emit("lead_paragraph", text)
 
     def answer_body_chunk(self, text: str) -> str:
         """Emits an answer body text chunk."""
+        self._mark_first_chunk("answer_body")
         return self.emit("answer_body", text)
 
     def interpretation_chunk(self, text: str) -> str:
         """Emits an interpretation text chunk."""
+        self._mark_first_chunk("interpretation")
         return self.emit("interpretation", text)
 
     def definitions(self, definitions: List[DefinitionItem]) -> str:
         """Emits a list of term definitions."""
         data = DefinitionsData(definitions=definitions)
         return self.emit("definitions", data)
+
+    def workflow_metrics(self, data: WorkflowMetricsData) -> str:
+        """Emits per-request workflow metrics (TTFT, e2e, backend summary)."""
+        return self.emit("workflow_metrics", data)
 
     def tool_call(self, name: str, input_data: Dict[str, Any]) -> str:
         data = ToolCallData(name=name, input=input_data)
