@@ -1,60 +1,46 @@
-"""Search & Synthesis workflow v2.
+"""Search & Synthesis workflow v2 (fast).
 
-A search-and-synthesis interaction model that restructures answers into
-5 sections: lead paragraph, body, definitions, interpretation, and sources.
+A latency-optimized variant of search_synthesis_v1 that:
+- Uses a fast two-stage retrieval cascade (no HyDE, merged eval+expand)
+- Merges lead paragraph + answer body into a single streaming LLM call
+  (bold Markdown lead followed by elaborating body, streamed as text_chunk)
+- Drops the definitions step entirely
 
 Steps:
 1. interpret_and_route — Combine query interpretation + scope routing
 2. generate_deferral — Generate deferral message if out of scope
-3. search_and_validate — Three-stage progressive hybrid retrieval with corrective-RAG
-4. generate_answer_body — Generate the main answer body
-5. generate_lead_paragraph — Generate the lead paragraph
-6. ParallelStep([generate_definitions, generate_source_list]) — Definitions + sources in parallel
-
-All LLM calls use the DGX Spark with gemma-4-26B-A4B-it and fallback to Scaleway.
+3. retrieval_cascade_fast — Two-stage progressive hybrid retrieval with cumulative RRF
+4. generate_lead_and_body — Single streaming call producing bold lead + body
+5. generate_source_list — Source attribution for conversation history
 """
 
-from lex_llm.api.connectors.dgx_provider import DGXProvider
-from lex_llm.api.connectors.routing_llm_provider import RoutingLLMProvider
 from lex_llm.api.connectors.scaleway_provider import ScalewayProvider
-from lex_llm.api.connectors.vllm_load_probe import VLLMLoadProbe
 
-from ..api.orchestrator import Orchestrator, ParallelStep
+from ..api.orchestrator import Orchestrator
 from ..api.event_models import WorkflowRunRequest
 from ..tools import (
     interpret_and_route,
     generate_deferral,
-    retrieval_cascade,
-    generate_answer_body,
-    generate_lead_paragraph,
-    generate_definitions,
+    retrieval_cascade_fast,
+    generate_lead_and_body,
     generate_source_list,
 )
-from ..prompts_search_synthesis import get_answer_body_prompt
+from ..prompts_search_synthesis import get_lead_and_body_prompt
 from datetime import date
-import os
 
 # Shared LLM provider for all steps
-_model_name = "gemma-4-26B-A4B-it"
-_metrics_url = f"{os.environ['METRICS_SERVER_URL']}/metrics/{_model_name}"
-_probe = VLLMLoadProbe(_metrics_url, model_name=_model_name)
-
-_llm = RoutingLLMProvider(
-    primary=DGXProvider(model=_model_name),
-    fallback=ScalewayProvider(model="gemma-4-26b-a4b-it"),
-    probe=_probe,
-)
+_llm = ScalewayProvider(model="gemma-4-26b-a4b-it")
 
 
 def get_workflow(request: WorkflowRunRequest) -> Orchestrator:
-    """Configures and returns the Search & Synthesis v2 workflow orchestrator."""
+    """Configures and returns the Search & Synthesis v2 (fast) workflow orchestrator."""
 
     return Orchestrator(
         request=request,
         steps=[
             interpret_and_route(llm_provider=_llm),
             generate_deferral(llm_provider=_llm),
-            retrieval_cascade(
+            retrieval_cascade_fast(
                 llm_provider=_llm,
                 index_name="article_embeddings_e5",
                 top_k=25,
@@ -62,20 +48,14 @@ def get_workflow(request: WorkflowRunRequest) -> Orchestrator:
                 top_k_fts=40,
                 rrf_k=60,
             ),
-            generate_answer_body(
+            generate_lead_and_body(
                 llm_provider=_llm,
-                system_prompt=get_answer_body_prompt(
-                    date.today(), workflow_description=get_metadata().get("description")
+                system_prompt=get_lead_and_body_prompt(
+                    date.today(),
+                    workflow_description=get_metadata().get("description"),
                 ),
-            ),  # system prompt can be empty or customized as needed
-            generate_lead_paragraph(llm_provider=_llm),
-            ParallelStep(
-                steps=[
-                    generate_definitions(llm_provider=_llm),
-                    generate_source_list(llm_provider=_llm),
-                ],
-                label="definitions_and_sources",
             ),
+            generate_source_list(llm_provider=_llm),
         ],
         context={"conversation_history": request.conversation_history},
     )
@@ -84,22 +64,27 @@ def get_workflow(request: WorkflowRunRequest) -> Orchestrator:
 def get_metadata() -> dict:
     return {
         "workflow_id": "search_synthesis_v2",
-        "name": "Search & Synthesis v2",
+        "name": "Search & Synthesis v2 (fast)",
         "description": (
-            "A search-and-synthesis workflow that restructures answers into "
-            "5 sections: lead paragraph, body, definitions, interpretation, "
-            "and sources. Uses combined query interpretation + routing, and a "
-            "three-stage progressive retrieval strategy: simple hybrid search, "
-            "intermediate keyword expansion, and advanced HyDE-based corrective-RAG. "
-            "Parallel generation of definitions + source list. "
-            "All LLM calls use Google Gemma 4 26B A4B via the DGX Spark with a fallback to Scaleway."
+            "A latency-optimized search-and-synthesis workflow that restructures "
+            "answers into 4 sections: interpretation, lead paragraph (bold), "
+            "body, and sources. Uses a two-stage fast retrieval cascade with "
+            "merged eval+expand and cumulative RRF, a single streaming LLM call "
+            "for lead+body generation, and drops the definitions step. "
+            "All LLM calls use Google Gemma 4 26B A4B via Scaleway."
         ),
         "steps": [
             {
                 "name": "Interpret & Route",
-                "description": "Interprets the user query and determines if it's within scope.",
+                "description": "Interprets the user query and determines if it's within scope. Returns lists of keywords and subqueries for retrieval.",
                 "inputs": ["user_input"],
-                "outputs": ["query_interpretation", "is_in_scope", "routing_reason"],
+                "outputs": [
+                    "query_interpretation",
+                    "is_in_scope",
+                    "routing_reason",
+                    "keywords",
+                    "subqueries",
+                ],
             },
             {
                 "name": "Generate Deferral",
@@ -108,37 +93,44 @@ def get_metadata() -> dict:
                 "outputs": ["final_response"],
             },
             {
-                "name": "Retrieval Cascade",
+                "name": "Retrieval Cascade (fast)",
                 "description": (
-                    "Three-stage progressive hybrid retrieval: "
-                    "(1) simple_retrieval with raw query, "
-                    "(2) intermediate_retrieval with expanded keywords, "
-                    "(3) advanced_retrieval with HyDE + corrective keyword broadening."
+                    "Two-stage progressive hybrid retrieval: "
+                    "(1) simple_retrieval with keywords/subqueries from interpretation, "
+                    "(2) corrective intermediate search driven by a merged eval+expand LLM call. "
+                    "Cumulative raw result lists are RRF-fused across both stages."
                 ),
-                "inputs": ["user_input", "query_interpretation"],
+                "inputs": [
+                    "user_input",
+                    "query_interpretation",
+                    "keywords",
+                    "subqueries",
+                ],
                 "outputs": ["retrieved_docs", "insufficient_context"],
             },
             {
-                "name": "Generate Answer Body",
-                "description": "Generates the main answer body from retrieved documents.",
-                "inputs": ["retrieved_docs", "user_input", "query_interpretation"],
-                "outputs": ["answer_body"],
-            },
-            {
-                "name": "Generate Lead Paragraph",
-                "description": "Generates a concise lead paragraph summarizing the answer.",
-                "inputs": ["answer_body", "user_input"],
-                "outputs": ["lead_paragraph"],
-            },
-            {
-                "name": "Definitions & Sources (parallel)",
+                "name": "Generate Lead & Body (merged)",
                 "description": (
-                    "Generates key term definitions and attributes sources in parallel."
+                    "Single streaming LLM call that produces a bold Markdown lead "
+                    "paragraph followed by an elaborating answer body. Streams as "
+                    "text_chunk events."
                 ),
+                "inputs": [
+                    "retrieved_docs",
+                    "retrieved_chunks",
+                    "conversation_history",
+                    "user_input",
+                    "query_interpretation",
+                ],
+                "outputs": ["final_response", "answer_body", "lead_paragraph"],
+            },
+            {
+                "name": "Generate Source List",
+                "description": "Attributes which sources were used in the answer.",
                 "inputs": ["answer_body", "retrieved_docs"],
-                "outputs": ["definitions", "used_sources", "final_response"],
+                "outputs": ["used_sources", "system_prompt", "final_response"],
             },
         ],
         "author": "Simon Enni",
-        "version": "2.0.0",
+        "version": "1.0.0",
     }

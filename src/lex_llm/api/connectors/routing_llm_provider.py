@@ -43,7 +43,6 @@ class RoutingLLMProvider(LLMProvider):
             async for chunk in self.fallback.generate_stream(messages):
                 yield chunk
             return
-
         stream = self.primary.generate_stream(messages)
         try:
             first = await stream.__anext__()

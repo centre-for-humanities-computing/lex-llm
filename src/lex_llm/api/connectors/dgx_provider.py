@@ -1,10 +1,12 @@
 # llm/dgx_provider.py
+import logging
 import os
 from typing import AsyncGenerator, List
 import litellm
 from ..event_models import ConversationMessage
 from .llm_provider import LLMProvider
 
+logger = logging.getLogger(__name__)
 
 class DGXProvider(LLMProvider):
     """Talks to the DGX Spark via the nginx-fronted vLLM OpenAI endpoint.
@@ -38,7 +40,6 @@ class DGXProvider(LLMProvider):
             timeout=30,
             custom_llm_provider="openai",
         )
-
         async for chunk in stream:  # type: ignore
             content = chunk.choices[0].delta.content
             if content:

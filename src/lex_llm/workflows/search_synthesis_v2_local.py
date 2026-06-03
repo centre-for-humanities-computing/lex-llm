@@ -1,4 +1,4 @@
-"""Search & Synthesis workflow v2 (fast).
+"""Search & Synthesis workflow v2 (fast) local version.
 
 A latency-optimized variant of search_synthesis_v1 that:
 - Uses a fast two-stage retrieval cascade (no HyDE, merged eval+expand)
@@ -14,7 +14,12 @@ Steps:
 5. generate_source_list — Source attribution for conversation history
 """
 
+import os
+
+from lex_llm.api.connectors.dgx_provider import DGXProvider
+from lex_llm.api.connectors.routing_llm_provider import RoutingLLMProvider
 from lex_llm.api.connectors.scaleway_provider import ScalewayProvider
+from lex_llm.api.connectors.vllm_load_probe import VLLMLoadProbe
 
 from ..api.orchestrator import Orchestrator
 from ..api.event_models import WorkflowRunRequest
@@ -28,9 +33,27 @@ from ..tools import (
 from ..prompts_search_synthesis import get_lead_and_body_prompt
 from datetime import date
 
-# Shared LLM provider for all steps
-_llm = ScalewayProvider(model="gemma-4-26b-a4b-it")
+# LLM provider for large model
+_model_name_large = "gemma-4-26B-A4B-it"
+_metrics_url_large = f"{os.environ['METRICS_SERVER_URL']}/metrics/{_model_name_large}"
+_probe_large = VLLMLoadProbe(_metrics_url_large, model_name=_model_name_large)
 
+_llm_large = RoutingLLMProvider(
+    primary=DGXProvider(model=_model_name_large),
+    fallback=ScalewayProvider(model="gemma-4-26b-a4b-it"),
+    probe=_probe_large,
+)
+
+# LLM provider for small model (used for routing/interpretation)
+_model_name_small = "gemma-4-E2B-it"
+_metrics_url_small = f"{os.environ['METRICS_SERVER_URL']}/metrics/{_model_name_small}"
+_probe_small = VLLMLoadProbe(_metrics_url_small, model_name=_model_name_small)
+
+_llm_small = RoutingLLMProvider(
+    primary=DGXProvider(model=_model_name_small),
+    fallback=ScalewayProvider(model="gemma-4-26b-a4b-it"),
+    probe=_probe_small,
+)
 
 def get_workflow(request: WorkflowRunRequest) -> Orchestrator:
     """Configures and returns the Search & Synthesis v2 (fast) workflow orchestrator."""
@@ -38,10 +61,10 @@ def get_workflow(request: WorkflowRunRequest) -> Orchestrator:
     return Orchestrator(
         request=request,
         steps=[
-            interpret_and_route(llm_provider=_llm),
-            generate_deferral(llm_provider=_llm),
+            interpret_and_route(llm_provider=_llm_small),
+            generate_deferral(llm_provider=_llm_large),
             retrieval_cascade_fast(
-                llm_provider=_llm,
+                llm_provider=_llm_large,
                 index_name="article_embeddings_e5",
                 top_k=25,
                 top_k_semantic=40,
@@ -49,13 +72,13 @@ def get_workflow(request: WorkflowRunRequest) -> Orchestrator:
                 rrf_k=60,
             ),
             generate_lead_and_body(
-                llm_provider=_llm,
+                llm_provider=_llm_large,
                 system_prompt=get_lead_and_body_prompt(
                     date.today(),
                     workflow_description=get_metadata().get("description"),
                 ),
             ),
-            generate_source_list(llm_provider=_llm),
+            generate_source_list(llm_provider=_llm_large),
         ],
         context={"conversation_history": request.conversation_history},
     )
@@ -63,15 +86,16 @@ def get_workflow(request: WorkflowRunRequest) -> Orchestrator:
 
 def get_metadata() -> dict:
     return {
-        "workflow_id": "search_synthesis_v2_fast",
-        "name": "Search & Synthesis v2 (fast)",
+        "workflow_id": "search_synthesis_v2_local",
+        "name": "Search & Synthesis v2 (fast) local version",
         "description": (
             "A latency-optimized search-and-synthesis workflow that restructures "
             "answers into 4 sections: interpretation, lead paragraph (bold), "
             "body, and sources. Uses a two-stage fast retrieval cascade with "
             "merged eval+expand and cumulative RRF, a single streaming LLM call "
             "for lead+body generation, and drops the definitions step. "
-            "All LLM calls use Google Gemma 4 26B A4B via Scaleway."
+            "Routing LLM calls use Google Gemma 4 E2B and other steps use Google "
+            "Gemma 4 26B A4B via local DGX Spark - both fall back to 26B A4B on Scaleway for backup."
         ),
         "steps": [
             {
