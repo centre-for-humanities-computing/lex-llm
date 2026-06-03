@@ -63,7 +63,7 @@ def get_workflow(request: WorkflowRunRequest) -> Orchestrator:
 
 def get_metadata() -> dict:
     return {
-        "workflow_id": "search_synthesis_v2_fast",
+        "workflow_id": "search_synthesis_v2",
         "name": "Search & Synthesis v2 (fast)",
         "description": (
             "A latency-optimized search-and-synthesis workflow that restructures "

@@ -1,4 +1,4 @@
-"""Beta Workflow v4 (fast).
+"""Beta Workflow v4 (fast) local version .
 
 Fast variant of beta_workflow_v3 with latency optimizations:
 - Two-stage retrieval cascade (no HyDE / advanced expansion)
@@ -6,9 +6,14 @@ Fast variant of beta_workflow_v3 with latency optimizations:
 - Cumulative RRF-fused chunk pool across both stages
 """
 
+import os
+
+from lex_llm.api.connectors.dgx_provider import DGXProvider
+from lex_llm.api.connectors.routing_llm_provider import RoutingLLMProvider
 from lex_llm.api.connectors.scaleway_provider import ScalewayProvider
 from datetime import datetime
 
+from lex_llm.api.connectors.vllm_load_probe import VLLMLoadProbe
 from lex_llm.tools import interpret_and_route
 from lex_llm.tools.generate_deferral import generate_deferral
 from lex_llm.tools.retrieval_cascade_fast import retrieval_cascade_fast
@@ -19,8 +24,27 @@ from ..tools import generate_response_with_sources
 from ..prompts import get_deferral_message, get_system_prompt
 
 
-# Shared LLM provider for all steps
-_llm = ScalewayProvider(model="gemma-4-26b-a4b-it")
+# LLM provider for large model
+_model_name_large = "gemma-4-26B-A4B-it"
+_metrics_url_large = f"{os.environ['METRICS_SERVER_URL']}/metrics/{_model_name_large}"
+_probe_large = VLLMLoadProbe(_metrics_url_large, model_name=_model_name_large)
+
+_llm_large = RoutingLLMProvider(
+    primary=DGXProvider(model=_model_name_large),
+    fallback=ScalewayProvider(model="gemma-4-26b-a4b-it"),
+    probe=_probe_large,
+)
+
+# LLM provider for small model (used for routing/interpretation)
+_model_name_small = "gemma-4-E2B-it"
+_metrics_url_small = f"{os.environ['METRICS_SERVER_URL']}/metrics/{_model_name_small}"
+_probe_small = VLLMLoadProbe(_metrics_url_small, model_name=_model_name_small)
+
+_llm_small = RoutingLLMProvider(
+    primary=DGXProvider(model=_model_name_small),
+    fallback=ScalewayProvider(model="gemma-4-26b-a4b-it"),
+    probe=_probe_small,
+)
 
 
 def get_workflow(request: WorkflowRunRequest) -> Orchestrator:
@@ -29,10 +53,10 @@ def get_workflow(request: WorkflowRunRequest) -> Orchestrator:
     return Orchestrator(
         request=request,
         steps=[
-            interpret_and_route(llm_provider=_llm),
-            generate_deferral(llm_provider=_llm),
+            interpret_and_route(llm_provider=_llm_small),
+            generate_deferral(llm_provider=_llm_large),
             retrieval_cascade_fast(
-                llm_provider=_llm,
+                llm_provider=_llm_large,
                 index_name="article_embeddings_e5",
                 top_k=25,
                 top_k_semantic=40,
@@ -40,7 +64,7 @@ def get_workflow(request: WorkflowRunRequest) -> Orchestrator:
                 rrf_k=60,
             ),
             generate_response_with_sources(
-                llm_provider=_llm,
+                llm_provider=_llm_large,
                 system_prompt=get_system_prompt(
                     version="alpha_v1",
                     current_date=datetime.today(),
@@ -55,11 +79,13 @@ def get_workflow(request: WorkflowRunRequest) -> Orchestrator:
 
 def get_metadata() -> dict:
     return {
-        "workflow_id": "beta_workflow_v4_fast",
-        "name": "Beta Workflow v4 (fast)",
+        "workflow_id": "beta_workflow_v4_local",
+        "name": "Beta Workflow v4 (fast) local version",
         "description": (
-            "Fast variant of Beta Workflow v3 using Google Gemma 4 26B "
-            "via Scaleway and the multilingual e5 large embedding model. "
+            "Fast variant of Beta Workflow v3 using Google Gemma 4 26B and 4 "
+            "E2B via local DGX Spark with Gemma 4 26B A4B on Scaleway as backup. "
+            "Generates a response with sources in a single streaming LLM call, "
+            "and uses the multilingual e5 large embedding model for search. "
             "Two-stage retrieval cascade (simple → corrective intermediate) "
             "with merged eval+expand LLM call between stages and cumulative "
             "RRF-fused chunk pool. No HyDE / advanced expansion."
