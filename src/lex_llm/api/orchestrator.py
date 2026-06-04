@@ -46,6 +46,8 @@ class Orchestrator:
         self.emitter = EventEmitter(conversation_id=request.conversation_id)
         # A simple dictionary to pass state between steps
         self.context: dict[str, Any] = {**context, **request.model_dump()}
+        # Accumulated step telemetry for backend_summary aggregation
+        self._step_telemetries: list[dict[str, Any]] = []
 
     async def _run_step(
         self, step_func: StepFunc, step_id: str, step_name: str
@@ -66,6 +68,7 @@ class Orchestrator:
                     yield event
         except Exception as exc:
             duration_ms = (time_module.perf_counter() - t_start) * 1000
+            self._step_telemetries.append(step_telemetry)
             yield self.emitter.workflow_step(
                 WorkflowStepData(
                     step_id=step_id,
@@ -80,6 +83,7 @@ class Orchestrator:
             self.context.pop("_current_step_telemetry", None)
 
         duration_ms = (time_module.perf_counter() - t_start) * 1000
+        self._step_telemetries.append(step_telemetry)
         yield self.emitter.workflow_step(
             WorkflowStepData(
                 step_id=step_id,
@@ -244,12 +248,7 @@ class Orchestrator:
             else None
         )
         # Rolling backend summary from context steps that wrote to telemetry
-        backend_counts: dict[str, int] = {}
-        # This is a best-effort snapshot — the steps wrote to
-        # _current_step_telemetry which we can't access after the fact.
-        # For the summary we rely on what the steps recorded; but those
-        # may not be available. The JSONL recorder gets the
-        # full per-step list instead.
+        backend_counts = self._build_backend_summary()
         return e.workflow_metrics(
             WorkflowMetricsData(
                 workflow_id=self.workflow_id,
@@ -261,6 +260,15 @@ class Orchestrator:
                 outcome=outcome,  # type: ignore[arg-type]
             )
         )
+
+    def _build_backend_summary(self) -> dict[str, int]:
+        """Aggregate backend counts across all completed step telemetries."""
+        counts: dict[str, int] = {}
+        for tel in self._step_telemetries:
+            for call in tel.get("llm_calls") or []:
+                b = call.get("backend", "unknown")
+                counts[b] = counts.get(b, 0) + 1
+        return counts
 
     async def _submit_recorder_row(self, t_start: float, outcome: str) -> None:
         """Submit one telemetry row to the JSONL recorder."""
@@ -285,6 +293,7 @@ class Orchestrator:
                 else None
             ),
             "step_count": len(self.steps),
+            "backend_summary": self._build_backend_summary(),
         }
         try:
             await get_recorder().submit(row)

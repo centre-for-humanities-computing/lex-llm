@@ -11,7 +11,7 @@ import pytest_asyncio
 from lex_llm.api.orchestrator import Orchestrator
 from lex_llm.api.event_emitter import EventEmitter
 from lex_llm.api.event_models import WorkflowRunRequest, ConversationMessage
-from lex_llm.api.connectors.llm_provider import LLMProvider, RouteDecision
+from lex_llm.api.connectors.llm_provider import LLMProvider
 from lex_llm.api.connectors.vllm_load_probe import VLLMLoadProbe
 from lex_llm.api.observability.run_recorder import RunRecorder
 
@@ -277,17 +277,7 @@ async def test_route_callback_captured_in_step_telemetry(
     ) -> AsyncGenerator[str | None, None]:
         telemetry = ctx.setdefault("_current_step_telemetry", {})
 
-        def _record(d: RouteDecision) -> None:
-            telemetry.setdefault("llm_calls", []).append(
-                {
-                    "backend": d.backend,
-                    "trigger": d.trigger,
-                    "reason": d.reason,
-                    "model": d.model,
-                }
-            )
-
-        async with provider.observe(_record):
+        async with provider.observe(telemetry=telemetry):
             result = await provider.generate(
                 [ConversationMessage(role="user", content="hello")]
             )
@@ -308,6 +298,8 @@ async def test_route_callback_captured_in_step_telemetry(
     assert len(calls) == 1, f"Expected 1 llm_call, got {len(calls)}"
     assert calls[0]["backend"] == "primary"
     assert calls[0]["model"] == "primary-model"
+    assert calls[0]["input_chars"] > 0, "input_chars must be > 0"
+    assert calls[0]["output_chars"] > 0, "output_chars must be > 0"
 
 
 @pytest.mark.asyncio
@@ -327,17 +319,7 @@ async def test_fallback_on_overload(
     ) -> AsyncGenerator[str | None, None]:
         telemetry = ctx.setdefault("_current_step_telemetry", {})
 
-        def _record(d: RouteDecision) -> None:
-            telemetry.setdefault("llm_calls", []).append(
-                {
-                    "backend": d.backend,
-                    "trigger": d.trigger,
-                    "reason": d.reason,
-                    "model": d.model,
-                }
-            )
-
-        async with provider.observe(_record):
+        async with provider.observe(telemetry=telemetry):
             result = await provider.generate(
                 [ConversationMessage(role="user", content="hello")]
             )
@@ -376,17 +358,7 @@ async def test_fallback_on_primary_error(
     ) -> AsyncGenerator[str | None, None]:
         telemetry = ctx.setdefault("_current_step_telemetry", {})
 
-        def _record(d: RouteDecision) -> None:
-            telemetry.setdefault("llm_calls", []).append(
-                {
-                    "backend": d.backend,
-                    "trigger": d.trigger,
-                    "reason": d.reason,
-                    "model": d.model,
-                }
-            )
-
-        async with provider.observe(_record):
+        async with provider.observe(telemetry=telemetry):
             result = await provider.generate(
                 [ConversationMessage(role="user", content="hello")]
             )
@@ -406,6 +378,7 @@ async def test_fallback_on_primary_error(
     assert len(calls) == 1
     assert calls[0]["backend"] == "fallback"
     assert calls[0]["trigger"] == "primary_pre_first_token_error"
+    assert calls[0]["output_chars"] > 0, "output_chars must be > 0 for fallback"
 
 
 @pytest.mark.asyncio

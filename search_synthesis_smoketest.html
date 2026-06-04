@@ -137,7 +137,12 @@ function formatControlFlowLine(eventType, data, timestamp) {
   if (data.output && data.output.duration_ms != null) {
     line += `  ${data.output.duration_ms.toFixed(0)}ms`;
     if (data.output.llm_calls && data.output.llm_calls.length > 0) {
-      const backends = data.output.llm_calls.map(c => c.backend).join(",");
+      const backends = data.output.llm_calls.map(c => {
+        let s = c.backend;
+        if (c.input_chars) s += ` i:${c.input_chars}`;
+        if (c.output_chars) s += ` o:${c.output_chars}`;
+        return s;
+      }).join(", ");
       line += ` [${backends}]`;
     }
   }
