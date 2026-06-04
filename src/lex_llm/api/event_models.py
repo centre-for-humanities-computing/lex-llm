@@ -61,6 +61,18 @@ class DefinitionsData(BaseModel):
     definitions: List[DefinitionItem]
 
 
+class WorkflowMetricsData(BaseModel):
+    """Emitted right before stream_end with per-request telemetry."""
+
+    workflow_id: str
+    e2e_ms: float
+    ttft_any_ms: float | None = None
+    ttft_answer_ms: float | None = None
+    backend_summary: Dict[str, int] = Field(default_factory=dict)
+    step_count: int = 0
+    outcome: Literal["ok", "error", "deferral"] = "ok"
+
+
 class StreamEvent(BaseModel):
     event: str
     conversation_id: str

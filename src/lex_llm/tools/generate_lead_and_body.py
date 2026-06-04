@@ -121,7 +121,11 @@ def generate_lead_and_body(
                 ConversationMessage(role=m["role"], content=m["content"])  # type: ignore
                 for m in deferral_messages
             ]
-            deferral_text = await llm_provider.generate(llm_deferral_messages)
+
+            telemetry = context.get("_current_step_telemetry", {})
+
+            async with llm_provider.observe(telemetry=telemetry):
+                deferral_text = await llm_provider.generate(llm_deferral_messages)
             deferral_text = deferral_text.strip()
 
             yield emitter.text_chunk(deferral_text)
@@ -185,9 +189,13 @@ def generate_lead_and_body(
 
         # --- Stream response ---
         full_response = ""
-        async for chunk in llm_provider.generate_stream(messages):  # type: ignore
-            full_response += chunk
-            yield emitter.text_chunk(chunk)
+
+        telemetry = context.get("_current_step_telemetry", {})
+
+        async with llm_provider.observe(telemetry=telemetry):
+            async for chunk in llm_provider.generate_stream(messages):  # type: ignore
+                full_response += chunk
+                yield emitter.text_chunk(chunk)
 
         context["final_response"] = full_response
         context["answer_body"] = full_response

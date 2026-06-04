@@ -163,19 +163,25 @@ def generate_response_with_sources(
             ConversationMessage(role=m["role"], content=m["content"])  # type: ignore
             for m in messages
         ]
+
+        # Observability: capture routing decision
+        telemetry = context.get("_current_step_telemetry", {})
+
         # Stream response from LLM
         full_response = ""
-        async for chunk in llm_provider.generate_stream(messages_for_llm):  # type: ignore
-            full_response += chunk
-            yield emitter.text_chunk(chunk)
+        async with llm_provider.observe(telemetry=telemetry):
+            async for chunk in llm_provider.generate_stream(messages_for_llm):  # type: ignore
+                full_response += chunk
+                yield emitter.text_chunk(chunk)
         context["final_response"] = full_response
 
         # Extract which NEW sources (from Potentielle kilder) were actually used
-        newly_used_sources = await extract_used_sources_via_llm(
-            response=full_response,
-            retrieved_docs=retrieved_docs,
-            llm_provider=llm_provider,
-        )
+        async with llm_provider.observe(telemetry=telemetry):
+            newly_used_sources = await extract_used_sources_via_llm(
+                response=full_response,
+                retrieved_docs=retrieved_docs,
+                llm_provider=llm_provider,
+            )
 
         # Merge with previous used sources, avoiding duplicates by ID
         previous_ids = {src["id"] for src in previous_used_sources_data}

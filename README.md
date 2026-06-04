@@ -144,4 +144,79 @@ The LexDB integration enables:
 All database interactions are handled automatically by the application, so no manual setup is required for end users.
 
 ---
-> 🚀 **Tip for Contributors:** Run `make pr` before submitting changes to ensure linting, typing, and tests pass.
+
+## Observability
+
+Each workflow run streams a structured NDJSON event sequence.  The observability
+extensions add per-request timing, per-step backend routing information, and a
+persistent JSONL log for offline analysis.
+
+### Events added / extended
+
+| Event | When | Data |
+|-------|------|------|
+| `workflow_step` ("completed") | After each step | `output.duration_ms` + `output.llm_calls[*]` per LLM call in the step |
+| `workflow_step` ("failed") | If a step raises | `output.duration_ms` + `error` |
+| `workflow_metrics` | Immediately before `stream_end` | `workflow_id`, `e2e_ms`, `ttft_any_ms`, `ttft_answer_ms`, `backend_summary`, `step_count`, `outcome` |
+
+### TTFT semantics
+
+- `ttft_any_ms` — monotonic time from `execute()` entry to the first chunk-like
+  event (`text_chunk`, `lead_paragraph`, `answer_body`, `interpretation`).
+- `ttft_answer_ms` — time to the first answer-body event (`text_chunk` or
+  `answer_body`).  Always ≤ `ttft_any_ms` because any chunk is counted as
+  "any".
+
+### Routing telemetry
+
+Each `LLMProvider` that supports routing (`RoutingLLMProvider`) exposes an
+`observe()` context manager.  Steps that wrap their LLM call in
+`async with llm_provider.observe(callback):` capture a `RouteDecision` with:
+
+| Field | Values |
+|-------|--------|
+| `backend` | `"primary"` or `"fallback"` |
+| `trigger` | `"ok"`, `"probe_overload"`, `"probe_scrape_error"`, `"primary_pre_first_token_error"` |
+| `reason` | Human-readable explanation (queue depth, exception text, etc.) |
+| `model` | Model name on the selected backend |
+
+These decisions appear as `output.llm_calls[*]` in the `workflow_step`
+"completed" event.
+
+### JSONL recorder
+
+A bounded async queue writes one JSON line per request to
+`LEX_LLM_TELEMETRY_DIR` (default `./telemetry/`), daily-rotated.  Each row
+includes:
+
+```json
+{
+  "ts": "2026-06-03T12:00:00+0000",
+  "conversation_id": "...",
+  "run_id": "...",
+  "workflow_id": "beta_workflow_v4_local",
+  "outcome": "ok",
+  "user_input_len": 42,
+  "e2e_ms": 4520.12,
+  "ttft_any_ms": 312.45,
+  "ttft_answer_ms": 312.45,
+  "step_count": 4
+}
+```
+
+The recorder is lossless under normal load and drops rows (with a log warning)
+if the internal queue exceeds 10 000 pending items, so it never back-pressures
+the request path.
+
+### Trace propagation to the inference server
+
+`DGXProvider` sends the orchestrator's `run_id` as the `X-Lex-Run-Id` HTTP
+header on every request to the DGX Spark.  Configure nginx to log it with:
+
+```
+log_format lex '$remote_addr - $remote_user [$time_local] '
+               '"$request" $status $body_bytes_sent '
+               '"$http_x_lex_run_id"';
+```
+
+This lets you join nginx access logs with the JSONL rows by `run_id`.

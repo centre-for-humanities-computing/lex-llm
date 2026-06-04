@@ -69,7 +69,10 @@ def generate_source_list(
             for m in messages
         ]
 
-        raw_response = await llm_provider.generate(llm_messages)
+        telemetry = context.get("_current_step_telemetry", {})
+
+        async with llm_provider.observe(telemetry=telemetry):
+            raw_response = await llm_provider.generate(llm_messages)
 
         try:
             result = parse_json_response(raw_response)

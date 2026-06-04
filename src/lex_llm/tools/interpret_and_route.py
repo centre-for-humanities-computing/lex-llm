@@ -55,8 +55,12 @@ def interpret_and_route(
             for m in messages
         ]
 
+        # Observability: capture routing decision
+        telemetry = context.get("_current_step_telemetry", {})
+
         yield emitter.tool_call("interpret_and_route", {"messages": messages})
-        raw_response = await llm_provider.generate(llm_messages)
+        async with llm_provider.observe(telemetry=telemetry):
+            raw_response = await llm_provider.generate(llm_messages)
 
         try:
             result = parse_json_response(raw_response)
