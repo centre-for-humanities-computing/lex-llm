@@ -164,7 +164,6 @@ class Orchestrator:
         try:
             # Execute each step in the defined sequence
             for step in self.steps:
-
                 if isinstance(step, ParallelStep):
                     async for p_event in self._run_parallel_step(step):
                         yield p_event

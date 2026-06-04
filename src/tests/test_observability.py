@@ -51,6 +51,7 @@ class FailingPrimaryLLM(LLMProvider):
         self, messages: List[ConversationMessage]
     ) -> AsyncGenerator[str, None]:
         raise RuntimeError("primary is on fire")
+        yield ""
 
     async def generate(self, messages: List[ConversationMessage]) -> str:
         raise RuntimeError("primary is on fire")
@@ -198,9 +199,7 @@ async def test_deferral_outcome(
     request_fixture: WorkflowRunRequest,
 ) -> None:
     """When a step sets _workflow_done, outcome must be 'deferral'."""
-    orch = Orchestrator(
-        request_fixture, [_ddg_step], workflow_id="defer_test"
-    )
+    orch = Orchestrator(request_fixture, [_ddg_step], workflow_id="defer_test")
     events = [e async for e in orch.execute()]
 
     metrics = None
@@ -220,9 +219,7 @@ async def test_error_outcome(
     request_fixture: WorkflowRunRequest,
 ) -> None:
     """When a step raises, outcome must be 'error' and workflow_metrics still emitted."""
-    orch = Orchestrator(
-        request_fixture, [_failing_step], workflow_id="err_test"
-    )
+    orch = Orchestrator(request_fixture, [_failing_step], workflow_id="err_test")
     events = [e async for e in orch.execute()]
 
     # Should have an error event
