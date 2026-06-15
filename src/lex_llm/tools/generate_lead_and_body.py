@@ -124,11 +124,12 @@ def generate_lead_and_body(
 
             telemetry = context.get("_current_step_telemetry", {})
 
+            deferral_text = ""
             async with llm_provider.observe(telemetry=telemetry):
-                deferral_text = await llm_provider.generate(llm_deferral_messages)
-            deferral_text = deferral_text.strip()
+                async for chunk in llm_provider.generate_stream(llm_deferral_messages):  # type: ignore
+                    yield emitter.text_chunk(chunk)
+                    deferral_text += chunk
 
-            yield emitter.text_chunk(deferral_text)
             context["final_response"] = deferral_text
             context["answer_body"] = deferral_text
             context["lead_paragraph"] = ""
