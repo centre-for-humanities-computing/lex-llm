@@ -6,7 +6,7 @@ from .interpret_and_route import interpret_and_route
 from .generate_deferral import generate_deferral
 from .retrieval_cascade import retrieval_cascade
 from .retrieval_cascade_fast import retrieval_cascade_fast
-from .simple_search import simple_search
+from .hybrid_search import hybrid_search
 from .search_with_expansion import search_with_expansion
 from .generate_answer_body import generate_answer_body
 from .generate_lead_paragraph import generate_lead_paragraph
@@ -21,7 +21,7 @@ __all__ = [
     "generate_deferral",
     "retrieval_cascade",
     "retrieval_cascade_fast",
-    "simple_search",
+    "hybrid_search",
     "search_with_expansion",
     "generate_answer_body",
     "generate_lead_paragraph",

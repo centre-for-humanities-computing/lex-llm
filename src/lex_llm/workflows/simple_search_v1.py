@@ -10,7 +10,7 @@ Steps:
 
 from ..api.orchestrator import Orchestrator
 from ..api.event_models import WorkflowRunRequest
-from ..tools import simple_search
+from ..tools import hybrid_search
 
 
 def get_workflow(request: WorkflowRunRequest) -> Orchestrator:
@@ -19,7 +19,7 @@ def get_workflow(request: WorkflowRunRequest) -> Orchestrator:
     return Orchestrator(
         request=request,
         steps=[
-            simple_search(
+            hybrid_search(
                 index_name="article_embeddings_e5",
                 top_k=100,
                 top_k_semantic=100,

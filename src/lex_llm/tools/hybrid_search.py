@@ -26,7 +26,7 @@ from ..utils.retrieval_helpers import (
 )
 
 
-def simple_search(
+def hybrid_search(
     index_name: str = "article_embeddings_e5",
     top_k: int = 10,
     top_k_semantic: int = 50,
@@ -48,7 +48,7 @@ def simple_search(
         - search_results: list[Source] — deduplicated article-level results
     """
 
-    async def _simple_search(
+    async def _hybrid_search(
         context: dict[str, Any], emitter: EventEmitter
     ) -> AsyncGenerator[str | None, None]:
         # Skip if workflow is done
@@ -56,26 +56,28 @@ def simple_search(
             return
 
         user_input: str = context.get("user_input", "")
+        keywords: list[str] = context.get("keywords", [user_input])
+        queries: list[str] = context.get("subqueries", [user_input])
         connector = LexDBConnector()
 
         # ------------------------------------------------------------------ #
         # Hybrid search — raw user query for both semantic and FTS           #
         # ------------------------------------------------------------------ #
         yield emitter.tool_call(
-            name="simple_search",
+            name="hybrid_search",
             input_data={
-                "semantic_query": user_input,
-                "keyword_query": user_input,
+                "semantic_query": queries,
+                "keyword_query": keywords,
             },
         )
 
         semantic_chunks = await connector.batch_vector_search(
-            queries=[(user_input, TextType.QUERY)],
+            queries=[(q, TextType.QUERY) for q in queries],
             top_k=top_k_semantic,
             index_name=index_name,
         )
         fts_chunks = await connector.batch_fulltext_search(
-            queries=[user_input],
+            queries=keywords,
             top_k=top_k_fts,
             index_name=index_name,
         )
@@ -86,7 +88,7 @@ def simple_search(
         )[:top_k]
 
         yield emitter.tool_result(
-            name="simple_search",
+            name="hybrid_search",
             result_data=build_search_result(
                 [c for qs in semantic_chunks for c in qs],
                 [c for qs in fts_chunks for c in qs],
@@ -107,4 +109,4 @@ def simple_search(
         # Emit the deduplicated source list as a stream event
         yield emitter.sources(sources)
 
-    return _simple_search
+    return _hybrid_search

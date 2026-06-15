@@ -90,8 +90,8 @@ Returner KUN et JSON-objekt med følgende felter:
 - "interpretation": En klar, præcis sætning der beskriver din fortolkning af brugerens spørgsmål
 - "in_scope": true eller false
 - "reason": En kort forklaring af hvorfor spørgsmålet er inden for eller uden for scope
-- "keywords": En liste af nøgleordssøgninger udledt fra forespørgslen, som kan bruges til at finde relevante artikler i en encyklopædi
-- "subqueries": Omformulér forespørgslen til et eller flere underspørgsmål, der tilsammen besvarer brugerens originale forespørgsel.
+- "keywords": (Kun hvis in_scope er true) En liste af nøgleordssøgninger udledt fra forespørgslen, som kan bruges til at finde relevante artikler i en encyklopædi
+- "subqueries": (Kun hvis in_scope er true) Omformulér forespørgslen til et eller flere underspørgsmål, der tilsammen besvarer brugerens originale forespørgsel.
 
 Eksempel på output:
 {{"interpretation": "Brugeren ønsker en forklaring af renæssancens oprindelse i Italien", "in_scope": true, "reason": "Forespørgslen vedrører en historisk periode, som er inden for encyklopædiens domæne", "keywords": ["renæssance oprindelse Italien", "Firenze renæssance", "Italien historie renæssance"], "subqueries": ["Hvad var renæssancen?", "Hvor og hvordan opstod renæssancen?"]}}
