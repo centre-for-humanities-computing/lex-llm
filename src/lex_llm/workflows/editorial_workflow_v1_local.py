@@ -13,9 +13,9 @@ Steps:
 
 import os
 
+from lex_llm.api.connectors.cortecs_provider import CortecsProvider
 from lex_llm.api.connectors.dgx_provider import DGXProvider
 from lex_llm.api.connectors.routing_llm_provider import RoutingLLMProvider
-from lex_llm.api.connectors.scaleway_provider import ScalewayProvider
 from lex_llm.api.connectors.vllm_load_probe import VLLMLoadProbe
 from lex_llm.tools import hybrid_search
 
@@ -37,7 +37,9 @@ _probe_large = VLLMLoadProbe(_metrics_url_large, model_name=_model_name_large)
 
 _llm_large = RoutingLLMProvider(
     primary=DGXProvider(model=_model_name_large),
-    fallback=ScalewayProvider(model="gemma-4-26b-a4b-it"),
+    fallback=CortecsProvider(
+        model="gemma-4-26b-a4b-it", preference="speed", reasoning_effort="none"
+    ),
     probe=_probe_large,
 )
 
@@ -48,7 +50,9 @@ _probe_small = VLLMLoadProbe(_metrics_url_small, model_name=_model_name_small)
 
 _llm_small = RoutingLLMProvider(
     primary=DGXProvider(model=_model_name_small),
-    fallback=ScalewayProvider(model="gemma-4-26b-a4b-it"),
+    fallback=CortecsProvider(
+        model="gemma-4-26b-a4b-it", preference="speed", reasoning_effort="none"
+    ),
     probe=_probe_small,
 )
 
