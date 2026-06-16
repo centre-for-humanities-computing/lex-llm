@@ -1,10 +1,9 @@
-"""Chat Workflow v1 Gemma 4 26B cloud version.
+"""Chat Workflow v1 Qwen 3.5 cloud version.
 
 Faster variant of beta_workflow_v4 with latency optimizations:
 - Single stage routing+retrieval.
 - Deferral roped into routing+retrieval.
 """
-
 
 from lex_llm.api.connectors.cortecs_provider import CortecsProvider
 from datetime import datetime
@@ -18,17 +17,21 @@ from ..api.event_models import WorkflowRunRequest
 from ..tools import generate_response_with_sources
 from ..prompts import get_deferral_message, get_system_prompt
 
-_llm = CortecsProvider(model="minimax-m3", preference="speed", reasoning_effort="none")
+_llm_small = CortecsProvider(
+    model="gemma-4-26b-a4b-it", preference="speed", reasoning_effort="none"
+)
+
+_llm_large = CortecsProvider(
+    model="qwen3.5-397b-a17b", preference="speed", reasoning_effort="none"
+)
 
 
 def get_workflow(request: WorkflowRunRequest) -> Orchestrator:
-    """Configures and returns the fast RAG workflow orchestrator using Gemma via Scaleway."""
-
     return Orchestrator(
         request=request,
         steps=[
-            interpret_and_route(llm_provider=_llm),
-            generate_deferral(llm_provider=_llm),
+            interpret_and_route(llm_provider=_llm_small),
+            generate_deferral(llm_provider=_llm_small),
             hybrid_search(
                 index_name="article_embeddings_e5",
                 top_k=20,
@@ -37,7 +40,7 @@ def get_workflow(request: WorkflowRunRequest) -> Orchestrator:
                 rrf_k=60,
             ),
             generate_response_with_sources(
-                llm_provider=_llm,
+                llm_provider=_llm_large,
                 system_prompt=get_system_prompt(
                     version="alpha_v1",
                     current_date=datetime.today(),
@@ -52,11 +55,11 @@ def get_workflow(request: WorkflowRunRequest) -> Orchestrator:
 
 def get_metadata() -> dict:
     return {
-        "workflow_id": "chat_v1_local",
-        "name": "Chat v1 local version",
+        "workflow_id": "chat_v1_qwen",
+        "name": "Chat v1 Qwen 3.5 cloud version",
         "description": (
-            "Faster variant of Beta Workflow v4 using Google Gemma 4 26B and 4 "
-            "E2B via local DGX Spark with Gemma 4 26B A4B on Scaleway as backup. "
+            "Faster variant of Beta Workflow v4 using Google Gemma 4 26B and Qwen 3.5 "
+            "through Cortecs. "
             "Generates a response with sources in a single streaming LLM call, "
             "and uses the multilingual e5 large embedding model for search. "
             "Single-stage hybrid search using keywords and subqueries from "
@@ -97,7 +100,7 @@ def get_metadata() -> dict:
             },
             {
                 "name": "Response Generation with sources",
-                "description": "Formats a prompt using the retrieved documents and streams the LLM response using Gemma.",
+                "description": "Formats a prompt using the retrieved documents and streams the LLM response using Qwen 3.5.",
                 "inputs": ["retrieved_docs", "conversation_history", "user_input"],
                 "outputs": ["final_response"],
             },

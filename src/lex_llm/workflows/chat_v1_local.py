@@ -47,8 +47,6 @@ _llm_small = RoutingLLMProvider(
 
 
 def get_workflow(request: WorkflowRunRequest) -> Orchestrator:
-    """Configures and returns the fast RAG workflow orchestrator using Gemma via Scaleway."""
-
     return Orchestrator(
         request=request,
         steps=[

@@ -5,7 +5,6 @@ Faster variant of beta_workflow_v4 with latency optimizations:
 - Deferral roped into routing+retrieval.
 """
 
-
 from lex_llm.api.connectors.cortecs_provider import CortecsProvider
 from datetime import datetime
 
@@ -24,8 +23,6 @@ _llm = CortecsProvider(
 
 
 def get_workflow(request: WorkflowRunRequest) -> Orchestrator:
-    """Configures and returns the fast RAG workflow orchestrator using Gemma via Scaleway."""
-
     return Orchestrator(
         request=request,
         steps=[
@@ -54,11 +51,10 @@ def get_workflow(request: WorkflowRunRequest) -> Orchestrator:
 
 def get_metadata() -> dict:
     return {
-        "workflow_id": "chat_v1_local",
-        "name": "Chat v1 local version",
+        "workflow_id": "chat_v1_gemma4_26b",
+        "name": "Chat v1 Gemma 4 26B version",
         "description": (
-            "Faster variant of Beta Workflow v4 using Google Gemma 4 26B and 4 "
-            "E2B via local DGX Spark with Gemma 4 26B A4B on Scaleway as backup. "
+            "Faster variant of Beta Workflow v4 using Google Gemma 4 26B through Cortecs. "
             "Generates a response with sources in a single streaming LLM call, "
             "and uses the multilingual e5 large embedding model for search. "
             "Single-stage hybrid search using keywords and subqueries from "

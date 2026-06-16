@@ -1,4 +1,4 @@
-"""Editorial workflow v1 local version.
+"""Editorial workflow v1 Gemma 4 26B cloud version.
 
 A further latency-optimized variant of search_synthesis_v2 that:
 - Uses a single stage hybrid search with no separate corrective retrieval stage, relying on the LLM to effectively leverage keywords + subqueries from interpretation in one pass
@@ -11,12 +11,7 @@ Steps:
 5. generate_source_list — Source attribution for conversation history
 """
 
-import os
-
-from lex_llm.api.connectors.dgx_provider import DGXProvider
-from lex_llm.api.connectors.routing_llm_provider import RoutingLLMProvider
-from lex_llm.api.connectors.scaleway_provider import ScalewayProvider
-from lex_llm.api.connectors.vllm_load_probe import VLLMLoadProbe
+from lex_llm.api.connectors.cortecs_provider import CortecsProvider
 from lex_llm.tools import hybrid_search
 
 from ..api.orchestrator import Orchestrator
@@ -30,26 +25,8 @@ from ..tools import (
 from ..prompts_search_synthesis import get_lead_and_body_prompt
 from datetime import date
 
-# LLM provider for large model
-_model_name_large = "gemma-4-26B-A4B-it"
-_metrics_url_large = f"{os.environ['METRICS_SERVER_URL']}/metrics/{_model_name_large}"
-_probe_large = VLLMLoadProbe(_metrics_url_large, model_name=_model_name_large)
-
-_llm_large = RoutingLLMProvider(
-    primary=DGXProvider(model=_model_name_large),
-    fallback=ScalewayProvider(model="gemma-4-26b-a4b-it"),
-    probe=_probe_large,
-)
-
-# LLM provider for small model (used for routing/interpretation)
-_model_name_small = "gemma-4-E2B-it"
-_metrics_url_small = f"{os.environ['METRICS_SERVER_URL']}/metrics/{_model_name_small}"
-_probe_small = VLLMLoadProbe(_metrics_url_small, model_name=_model_name_small)
-
-_llm_small = RoutingLLMProvider(
-    primary=DGXProvider(model=_model_name_small),
-    fallback=ScalewayProvider(model="gemma-4-26b-a4b-it"),
-    probe=_probe_small,
+_llm = CortecsProvider(
+    model="gemma-4-26b-a4b-it", preference="speed", reasoning_effort="none"
 )
 
 
@@ -57,8 +34,8 @@ def get_workflow(request: WorkflowRunRequest) -> Orchestrator:
     return Orchestrator(
         request=request,
         steps=[
-            interpret_and_route(llm_provider=_llm_small),
-            generate_deferral(llm_provider=_llm_small),
+            interpret_and_route(llm_provider=_llm),
+            generate_deferral(llm_provider=_llm),
             hybrid_search(
                 index_name="article_embeddings_e5",
                 top_k=20,
@@ -67,13 +44,13 @@ def get_workflow(request: WorkflowRunRequest) -> Orchestrator:
                 rrf_k=60,
             ),
             generate_lead_and_body(
-                llm_provider=_llm_large,
+                llm_provider=_llm,
                 system_prompt=get_lead_and_body_prompt(
                     date.today(),
                     workflow_description=get_metadata().get("description"),
                 ),
             ),
-            generate_source_list(llm_provider=_llm_large),
+            generate_source_list(llm_provider=_llm),
         ],
         context={"conversation_history": request.conversation_history},
     )
@@ -81,16 +58,15 @@ def get_workflow(request: WorkflowRunRequest) -> Orchestrator:
 
 def get_metadata() -> dict:
     return {
-        "workflow_id": "editorial_workflow_v1_local",
-        "name": "Editorial workflow v1 local version",
+        "workflow_id": "editorial_workflow_v1_gemma4_26b",
+        "name": "Editorial workflow v1 Gemma 4 26B cloud version",
         "description": (
             "A latency-optimized search-and-synthesis workflow that restructures "
             "answers into 4 sections: interpretation, lead paragraph, "
             "body, and sources. Uses a two-stage fast retrieval cascade with "
             "merged eval+expand and cumulative RRF, a single streaming LLM call "
             "for lead+body generation, and drops the definitions step. "
-            "Routing LLM calls use Google Gemma 4 E2B and other steps use Google "
-            "Gemma 4 26B A4B via local DGX Spark - both fall back to 26B A4B on Scaleway for backup."
+            "Uses Google Gemma 4 26B A4B for all LLM calls."
         ),
         "steps": [
             {
