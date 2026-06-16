@@ -21,6 +21,7 @@ class CortecsProvider(LLMProvider):
         self,
         model: str = "gemma-4-26b-a4b-it",
         preference: str = "balanced",
+        reasoning_effort: str = "low",
     ):
         """Initialize Cortecs provider.
 
@@ -29,9 +30,12 @@ class CortecsProvider(LLMProvider):
             preference: Cortecs routing preference (default: "balanced").
                         Passed as ``preference`` in the request body per the
                         Cortecs quickstart guide.
+            reasoning_effort: The reasoning effort level (default: "low").
+                                Passed as ``reasoning_effort`` in the request body.
         """
         self.model = model
         self.preference = preference
+        self.reasoning_effort = reasoning_effort
         self._client = AsyncOpenAI(
             api_key=os.getenv("CORTECS_API_KEY", ""),
             base_url=os.getenv("CORTECS_BASE_URL", "https://api.cortecs.ai/v1"),
@@ -46,7 +50,10 @@ class CortecsProvider(LLMProvider):
             model=self.model,
             messages=msg_dicts,  # type: ignore[arg-type]
             stream=True,
-            extra_body={"preference": self.preference},
+            extra_body={
+                "preference": self.preference,
+                "reasoning_effort": self.reasoning_effort,
+            },
         )
         async for chunk in stream:  # type: ignore[union-attr]
             content = chunk.choices[0].delta.content
