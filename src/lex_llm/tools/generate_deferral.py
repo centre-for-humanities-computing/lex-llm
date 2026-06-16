@@ -35,23 +35,23 @@ def generate_deferral(
         user_input: str = context.get("user_input", "")
         routing_reason: str = context.get("routing_reason", "")
 
-        messages = get_deferral_prompt(
-            user_input=user_input,
-            routing_reason=routing_reason,
-        )
-
-        llm_messages = [
+        messages = [
             ConversationMessage(role=m["role"], content=m["content"])  # type: ignore
-            for m in messages
+            for m in get_deferral_prompt(
+                user_input=user_input,
+                routing_reason=routing_reason,
+            )
         ]
 
         telemetry = context.get("_current_step_telemetry", {})
 
+        deferral_message = ""
         async with llm_provider.observe(telemetry=telemetry):
-            deferral_message = await llm_provider.generate(llm_messages)
-        deferral_message = deferral_message.strip()
+            async for chunk in llm_provider.generate_stream(messages):  # type: ignore
+                deferral_message += chunk
+                yield emitter.text_chunk(chunk)
 
-        # Emit as lead paragraph (the only content for out-of-scope queries)
+        # Emit as lead paragraph
         yield emitter.lead_paragraph_chunk(deferral_message)
 
         context["final_response"] = deferral_message
