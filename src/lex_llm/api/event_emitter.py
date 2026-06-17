@@ -96,8 +96,13 @@ class EventEmitter:
         """Emits per-request workflow metrics (TTFT, e2e, backend summary)."""
         return self.emit("workflow_metrics", data)
 
-    def tool_call(self, name: str, input_data: Dict[str, Any]) -> str:
-        data = ToolCallData(name=name, input=input_data)
+    def tool_call(
+        self,
+        name: str,
+        input_data: Dict[str, Any],
+        description: Optional[str] = None,
+    ) -> str:
+        data = ToolCallData(name=name, input=input_data, description=description)
         return self.emit("tool_call", data)
 
     def tool_result(self, name: str, result_data: Dict[str, Any]) -> str:

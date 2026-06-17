@@ -71,7 +71,7 @@ def _extract_used_sources_from_system_prompt(
 def generate_lead_and_body(
     llm_provider: LLMProvider,
     system_prompt: str,
-) -> Callable[[dict[str, Any], EventEmitter], AsyncGenerator[str | None, None]]:
+) -> tuple[Callable[[dict[str, Any], EventEmitter], AsyncGenerator[str | None, None]], str]:
     """Creates a step that generates a bold lead paragraph followed by an
     elaborating answer body in a single LLM streaming call.
 
@@ -202,4 +202,4 @@ def generate_lead_and_body(
         context["answer_body"] = full_response
         context["lead_paragraph"] = ""
 
-    return _generate_lead_and_body
+    return _generate_lead_and_body, "Genererer svar ud fra de fundne kilder"

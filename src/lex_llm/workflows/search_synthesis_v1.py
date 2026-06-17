@@ -57,13 +57,13 @@ def get_workflow(request: WorkflowRunRequest) -> Orchestrator:
                 ),
             ),  # system prompt can be empty or customized as needed
             generate_lead_paragraph(llm_provider=_llm),
-            ParallelStep(
+            (ParallelStep(
                 steps=[
                     generate_definitions(llm_provider=_llm),
                     generate_source_list(llm_provider=_llm),
                 ],
                 label="definitions_and_sources",
-            ),
+            ), "Genererer definitioner og kildeliste parallelt"),
         ],
         context={"conversation_history": request.conversation_history},
     )

@@ -29,6 +29,7 @@ from ..api.event_models import ConversationMessage
 from ..prompts_search_synthesis import get_evaluate_and_expand_prompt
 from ..utils.rrf import reciprocal_rank_fusion
 from ..utils.retrieval_helpers import build_retrieval_result
+from ..utils.descriptions import build_search_description
 from .llm_json import parse_json_response
 from .retrieval_cascade import (
     _format_docs,
@@ -44,7 +45,7 @@ def retrieval_cascade_fast(
     top_k_semantic: int = 40,
     top_k_fts: int = 40,
     rrf_k: int = 60,
-) -> Callable[[dict[str, Any], EventEmitter], AsyncGenerator[str | None, None]]:
+) -> tuple[Callable[[dict[str, Any], EventEmitter], AsyncGenerator[str | None, None]], str]:
     """Creates a fast two-stage retrieval cascade step.
 
     Uses keywords and subqueries from ``interpret_and_route`` (set earlier
@@ -86,6 +87,10 @@ def retrieval_cascade_fast(
                 "semantic_queries": queries,
                 "keyword_queries": keywords,
             },
+            description=build_search_description(
+                keywords=keywords,
+                queries=queries,
+            ),
         )
 
         semantic_chunks = await connector.batch_vector_search(
@@ -138,6 +143,7 @@ def retrieval_cascade_fast(
                     "interpretation": interpretation,
                     "retrieved_docs": docs,
                 },
+                description="Vurderer resultater og udvider søgningen",
             )
 
             messages = get_evaluate_and_expand_prompt(
@@ -197,6 +203,10 @@ def retrieval_cascade_fast(
                 "keyword_queries": keyword_queries,
                 "relevance_feedback": reason,
             },
+            description=build_search_description(
+                keywords=keyword_queries,
+                queries=semantic_queries,
+            ),
         )
 
         semantic_chunks = await connector.batch_vector_search(
@@ -256,4 +266,4 @@ def retrieval_cascade_fast(
             or "Søgningen fandt ikke tilstrækkeligt relevante artikler efter to forsøg"
         )
 
-    return _retrieval_cascade_fast
+    return _retrieval_cascade_fast, "Søger blandt Lex's artikler"

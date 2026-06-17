@@ -65,7 +65,7 @@ def _extract_used_sources_from_system_prompt(
 def generate_answer_body(
     llm_provider: LLMProvider,
     system_prompt: str,
-) -> Callable[[dict[str, Any], EventEmitter], AsyncGenerator[str | None, None]]:
+) -> tuple[Callable[[dict[str, Any], EventEmitter], AsyncGenerator[str | None, None]], str]:
     """Creates a step that generates the answer body from retrieved documents.
 
     If context indicates insufficient search results, generates a deferral
@@ -183,4 +183,4 @@ def generate_answer_body(
 
         context["answer_body"] = full_response
 
-    return _generate_answer_body
+    return _generate_answer_body, "Skriver brødtekst ud fra fundne kilder"

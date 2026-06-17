@@ -12,7 +12,7 @@ from .llm_json import parse_json_response
 
 def interpret_and_route(
     llm_provider: LLMProvider,
-) -> Callable[[dict[str, Any], EventEmitter], AsyncGenerator[str | None, None]]:
+) -> tuple[Callable[[dict[str, Any], EventEmitter], AsyncGenerator[str | None, None]], str]:
     """Creates a step that interprets the user query and routes by scope.
 
     Uses a single LLM call to both interpret the query and determine
@@ -58,7 +58,11 @@ def interpret_and_route(
         # Observability: capture routing decision
         telemetry = context.get("_current_step_telemetry", {})
 
-        yield emitter.tool_call("interpret_and_route", {"messages": messages})
+        yield emitter.tool_call(
+            "interpret_and_route",
+            {"messages": messages},
+            description="Vurderer hvorvidt spørgsmålet er indenfor Lex's domæne...",
+        )
         async with llm_provider.observe(telemetry=telemetry):
             raw_response = await llm_provider.generate(llm_messages)
 
@@ -100,4 +104,4 @@ def interpret_and_route(
         # Emit the interpretation as a stream event
         yield emitter.interpretation_chunk(interpretation)
 
-    return _interpret_and_route
+    return _interpret_and_route, "Analyserer og fortolker brugerens spørgsmål"

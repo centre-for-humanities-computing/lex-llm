@@ -28,6 +28,7 @@ from ..prompts_search_synthesis import (
 )
 from ..utils.rrf import reciprocal_rank_fusion
 from ..utils.retrieval_helpers import build_retrieval_result
+from ..utils.descriptions import build_search_description
 from .llm_json import parse_json_response
 
 
@@ -51,7 +52,7 @@ def retrieval_cascade(
     top_k_semantic: int = 50,
     top_k_fts: int = 50,
     rrf_k: int = 60,
-) -> Callable[[dict[str, Any], EventEmitter], AsyncGenerator[str | None, None]]:
+) -> tuple[Callable[[dict[str, Any], EventEmitter], AsyncGenerator[str | None, None]], str]:
     """Creates a step that searches the knowledge base with a three-stage progressive strategy.
 
     The three stages escalate in compute cost, stopping as soon as a stage
@@ -96,6 +97,10 @@ def retrieval_cascade(
                 "semantic_queries": [queries],
                 "keyword_queries": [keywords],
             },
+            description=build_search_description(
+                keywords=keywords,
+                queries=queries,
+            ),
         )
 
         semantic_chunks = await connector.batch_vector_search(
@@ -172,6 +177,10 @@ def retrieval_cascade(
                 "keyword_queries": expanded_keyword_queries,
                 "relevance_feedback": reason,
             },
+            description=build_search_description(
+                keywords=expanded_keyword_queries,
+                queries=intermediate_semantic_queries,
+            ),
         )
 
         semantic_chunks = await connector.batch_vector_search(
@@ -244,6 +253,10 @@ def retrieval_cascade(
                 "keyword_queries": broadened_keyword_queries,
                 "relevance_feedback": reason,
             },
+            description=build_search_description(
+                keywords=broadened_keyword_queries,
+                queries=hyde_passages,
+            ),
         )
 
         semantic_chunks = await connector.batch_vector_search(
@@ -304,7 +317,7 @@ def retrieval_cascade(
             or "Søgningen fandt ikke tilstrækkeligt relevante artikler efter tre forsøg"
         )
 
-    return _retrieval_cascade
+    return _retrieval_cascade, "Søger blandt Lex's artikler"
 
 
 # ---------------------------------------------------------------------------
@@ -353,6 +366,7 @@ async def _run_relevance_evaluation(
             "interpretation": interpretation,
             "retrieved_docs": docs,
         },
+        description="Vurderer om resultaterne er relevante",
     )
 
     eval_messages = get_relevance_evaluation_prompt(

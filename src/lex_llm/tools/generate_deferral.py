@@ -11,7 +11,7 @@ from ..prompts_search_synthesis import get_deferral_prompt
 
 def generate_deferral(
     llm_provider: LLMProvider,
-) -> Callable[[dict[str, Any], EventEmitter], AsyncGenerator[str | None, None]]:
+) -> tuple[Callable[[dict[str, Any], EventEmitter], AsyncGenerator[str | None, None]], str]:
     """Creates a step that generates a deferral message for out-of-scope queries.
 
     If the query is in scope (context["is_in_scope"] is True), this step
@@ -57,4 +57,4 @@ def generate_deferral(
         context["final_response"] = deferral_message
         context["_workflow_done"] = True
 
-    return _generate_deferral
+    return _generate_deferral, "Vurderer brugerens forespørgsel"

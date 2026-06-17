@@ -13,7 +13,7 @@ from .llm_json import parse_json_response
 
 def generate_source_list(
     llm_provider: LLMProvider,
-) -> Callable[[dict[str, Any], EventEmitter], AsyncGenerator[str | None, None]]:
+) -> tuple[Callable[[dict[str, Any], EventEmitter], AsyncGenerator[str | None, None]], str]:
     """Creates a step that identifies which sources were used in the answer.
 
     Uses LLM analysis to determine which retrieved documents were actually
@@ -124,7 +124,7 @@ def generate_source_list(
             definitions=definitions,
         )
 
-    return _generate_source_list
+    return _generate_source_list, "Skriver kildeliste"
 
 
 def _compose_final_response(
