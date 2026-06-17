@@ -13,7 +13,7 @@ def search_knowledge_base(
     top_k: int = 10,
     search_method: str = "vector_search",
     methods: list[SearchMethod] | None = None,
-) -> Callable[[dict[str, Any], EventEmitter], AsyncGenerator[None, None]]:
+) -> tuple[Callable[[dict[str, Any], EventEmitter], AsyncGenerator[None, None]], str]:
     """
     Creates a knowledge base search step with the specified parameters.
 
@@ -50,4 +50,4 @@ def search_knowledge_base(
         context["retrieved_docs"] = group_chunks_to_articles(chunks)
         yield
 
-    return search_knowledge_base
+    return search_knowledge_base, "Søger blandt Lex's artikler"

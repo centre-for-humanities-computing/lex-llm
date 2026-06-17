@@ -27,7 +27,7 @@ class ParallelStep:
     error is propagated.
     """
 
-    def __init__(self, steps: list[StepFunc], label: str = "parallel"):
+    def __init__(self, steps: list[tuple[StepFunc, str]], label: str = "parallel"):
         self.steps = steps
         self.__name__ = label
 
@@ -36,7 +36,7 @@ class Orchestrator:
     def __init__(
         self,
         request: WorkflowRunRequest,
-        steps: list[StepFunc | ParallelStep],
+        steps: list[tuple[StepFunc | ParallelStep, str]],
         context: dict[str, Any] = {},
         workflow_id: str = "",
     ):
@@ -50,11 +50,20 @@ class Orchestrator:
         self._step_telemetries: list[dict[str, Any]] = []
 
     async def _run_step(
-        self, step_func: StepFunc, step_id: str, step_name: str
+        self,
+        step_func: StepFunc,
+        step_id: str,
+        step_name: str,
+        step_description: str | None,
     ) -> AsyncGenerator[str, None]:
         """Run a single step, wrapping it with workflow_step events."""
         yield self.emitter.workflow_step(
-            WorkflowStepData(step_id=step_id, name=step_name, status="started")
+            WorkflowStepData(
+                step_id=step_id,
+                name=step_name,
+                status="started",
+                description=step_description,
+            )
         )
 
         # Allocate per-step telemetry so LLM steps can record backend info
@@ -74,6 +83,7 @@ class Orchestrator:
                     step_id=step_id,
                     name=step_name,
                     status="failed",
+                    description=step_description,
                     output={"duration_ms": duration_ms, **step_telemetry},
                     error=str(exc),
                 )
@@ -89,6 +99,7 @@ class Orchestrator:
                 step_id=step_id,
                 name=step_name,
                 status="completed",
+                description=step_description,
                 output={"duration_ms": duration_ms, **step_telemetry},
             )
         )
@@ -99,10 +110,6 @@ class Orchestrator:
         """Run multiple steps concurrently, interleaving their events."""
         step_id = str(uuid.uuid4())
         step_name = parallel.__name__
-
-        yield self.emitter.workflow_step(
-            WorkflowStepData(step_id=step_id, name=step_name, status="started")
-        )
 
         queue: asyncio.Queue[str | None] = asyncio.Queue()
         step_count = len(parallel.steps)
@@ -119,8 +126,18 @@ class Orchestrator:
             finally:
                 await queue.put(None)  # Signal this step is done
 
-        tasks = [asyncio.create_task(_drain_step(step)) for step in parallel.steps]
-
+        tasks = [asyncio.create_task(_drain_step(step)) for step, _ in parallel.steps]
+        step_description = "Udfører følgende opgaver:\n\n" + "\n".join(
+            [description for _, description in parallel.steps]
+        )
+        yield self.emitter.workflow_step(
+            WorkflowStepData(
+                step_id=step_id,
+                name=step_name,
+                status="started",
+                description=step_description,
+            )
+        )
         try:
             completed = 0
             while completed < step_count:
@@ -145,7 +162,12 @@ class Orchestrator:
             await asyncio.gather(*tasks, return_exceptions=True)
 
         yield self.emitter.workflow_step(
-            WorkflowStepData(step_id=step_id, name=step_name, status="completed")
+            WorkflowStepData(
+                step_id=step_id,
+                name=step_name,
+                status="completed",
+                description=step_description,
+            )
         )
 
     async def execute(self) -> AsyncGenerator[str, None]:
@@ -163,7 +185,7 @@ class Orchestrator:
 
         try:
             # Execute each step in the defined sequence
-            for step in self.steps:
+            for step, description in self.steps:
                 if isinstance(step, ParallelStep):
                     async for p_event in self._run_parallel_step(step):
                         yield p_event
@@ -171,7 +193,9 @@ class Orchestrator:
                     step_id = str(uuid.uuid4())
                     step_name = step.__name__
                     step_count += 1
-                    async for event in self._run_step(step, step_id, step_name):
+                    async for event in self._run_step(
+                        step, step_id, step_name, description
+                    ):
                         yield event
                 # Check for early termination
                 if self.context.get("_workflow_done"):

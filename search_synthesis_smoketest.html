@@ -139,6 +139,10 @@ function formatControlFlowLine(eventType, data, timestamp) {
   const icons = { started: "▶", in_progress: "⏳", completed: "✓", failed: "✗" };
   const icon = icons[status] || "·";
   let line = `${prefix}${icon} ${name} ${status}`;
+  // Show description on its own indented line
+  if (data.description) {
+    line += `\n                  ${data.description}`;
+  }
   // Append duration and backend info when available
   if (data.output && data.output.duration_ms != null) {
     line += `  ${data.output.duration_ms.toFixed(0)}ms`;
@@ -212,6 +216,32 @@ function appendToSection(eventType, content, rawData, timestamp) {
     div.innerHTML = html;
     container.appendChild(div);
     container.scrollTop = container.scrollHeight;
+  } else if (eventType === "tool_call" && rawData && rawData.description) {
+    // Tool call with description — show description prominently, then input
+    const div = document.createElement("div");
+    div.className = "metrics-card";
+    div.style.borderColor = "#ffd93d55";
+    let html = `<div class="metrics-header" style="color:#ffd93d">🔧 ${rawData.name}</div>`;
+    html += `<div style="font-size:.8rem;color:#ccc;white-space:pre-wrap;margin:.25rem 0">${rawData.description}</div>`;
+    if (rawData.input && Object.keys(rawData.input).length > 0) {
+      html += `<pre style="font-size:.7rem;color:#888;margin:0">${JSON.stringify(rawData.input, null, 2)}</pre>`;
+    }
+    div.innerHTML = html;
+    container.appendChild(div);
+    container.scrollTop = container.scrollHeight;
+    // Also add a compact entry to the control_flow timeline
+    const cfSec = document.getElementById("sec-control_flow");
+    if (cfSec) {
+      const cfEmpty = cfSec.querySelector(".empty");
+      if (cfEmpty) cfEmpty.remove();
+      const cfPre = document.createElement("pre");
+      const ts = formatTimestamp(timestamp);
+      cfPre.textContent = `${ts ? `[${ts}] ` : ""}  🔧 ${rawData.name}: ${rawData.description.replace(/\n/g, " → ")}`;
+      cfSec.appendChild(cfPre);
+      cfSec.scrollTop = cfSec.scrollHeight;
+      counters["control_flow"] = (counters["control_flow"] || 0) + 1;
+      cfSec.querySelector("h2 .count").textContent = "(" + counters["control_flow"] + ")";
+    }
   } else {
     const pre = document.createElement("pre");
     pre.textContent = content;

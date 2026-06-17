@@ -36,7 +36,7 @@ async def test_orchestrator_executes_steps_in_order(
         context["step2"] = True
         yield "event2"
 
-    orch: Orchestrator = Orchestrator(dummy_request, [step1, step2])
+    orch: Orchestrator = Orchestrator(dummy_request, [(step1, ""), (step2, "")])
     events: List[str] = [e async for e in orch.execute()]
     assert calls == ["step1", "step2"]
     assert "step1" in orch.context and "step2" in orch.context
@@ -64,7 +64,7 @@ async def test_orchestrator_yields_correct_events(
         ),
         patch.object(EventEmitter, "stream_end", return_value="end"),
     ):
-        orch: Orchestrator = Orchestrator(dummy_request, [step], context={})
+        orch: Orchestrator = Orchestrator(dummy_request, [(step, "")], context={})
         orch.emitter = emitter
         events: List[str] = [e async for e in orch.execute()]
         assert events[0] == "start"
@@ -89,7 +89,7 @@ async def test_orchestrator_handles_exceptions(
         raise RuntimeError("fail!")
         yield  # pragma: no cover
 
-    orch: Orchestrator = Orchestrator(dummy_request, [step_ok, step_fail])
+    orch: Orchestrator = Orchestrator(dummy_request, [(step_ok, ""), (step_fail, "")])
     events: List[str] = [e async for e in orch.execute()]
     assert any("fail!" in e for e in events)
     assert not any("completed" in e for e in events if "fail!" in e)
@@ -105,7 +105,7 @@ async def test_orchestrator_final_conversation_history(
         context["final_response"] = "Assistant reply"
         yield "step"
 
-    orch: Orchestrator = Orchestrator(dummy_request, [step])
+    orch: Orchestrator = Orchestrator(dummy_request, [(step, "")])
     events: List[str] = [e async for e in orch.execute()]
     assert any("Assistant reply" in e for e in events)
     assert any("Hello?" in e for e in events)
@@ -120,6 +120,6 @@ async def test_orchestrator_context_merging(dummy_request: WorkflowRunRequest) -
     ) -> AsyncGenerator[str, None]:
         yield "done"
 
-    orch: Orchestrator = Orchestrator(dummy_request, [step], context=context)
+    orch: Orchestrator = Orchestrator(dummy_request, [(step, "")], context=context)
     assert orch.context["user_input"] == dummy_request.user_input
     assert orch.context["foo"] == 42

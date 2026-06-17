@@ -65,7 +65,7 @@ def generate_response_with_sources(
     llm_provider: LLMProvider,
     system_prompt: str,
     deferral_message: str,
-) -> Callable[[dict[str, Any], EventEmitter], AsyncGenerator[str, None]]:
+) -> tuple[Callable[[dict[str, Any], EventEmitter], AsyncGenerator[str, None]], str]:
     """
     Creates a response generation step with source attribution.
 
@@ -228,4 +228,4 @@ def generate_response_with_sources(
             ]
         )
 
-    return generate_response_with_sources
+    return generate_response_with_sources, "Skriver svar ud fra fundne kilder"

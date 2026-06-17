@@ -40,12 +40,14 @@ class StreamEndData(BaseModel):
 class ToolCallData(BaseModel):
     name: str
     input: Dict[str, Any]
+    description: Optional[str] = None
 
 
 class WorkflowStepData(BaseModel):
     step_id: str
     name: str
     status: str = Field(..., pattern="^(started|in_progress|completed|failed)$")
+    description: Optional[str] = None
     input: Optional[Any] = None
     update: Optional[Any] = None
     output: Optional[Any] = None

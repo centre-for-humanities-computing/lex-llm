@@ -11,7 +11,9 @@ from ..prompts_search_synthesis import get_lead_paragraph_prompt
 
 def generate_lead_paragraph(
     llm_provider: LLMProvider,
-) -> Callable[[dict[str, Any], EventEmitter], AsyncGenerator[str | None, None]]:
+) -> tuple[
+    Callable[[dict[str, Any], EventEmitter], AsyncGenerator[str | None, None]], str
+]:
     """Creates a step that generates a lead paragraph from the answer body.
 
     The lead paragraph brings the conclusion to the front, respecting
@@ -62,4 +64,4 @@ def generate_lead_paragraph(
 
         context["lead_paragraph"] = full_paragraph
 
-    return _generate_lead_paragraph
+    return _generate_lead_paragraph, "Skriver manchet"

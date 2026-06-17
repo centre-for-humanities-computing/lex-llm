@@ -24,6 +24,7 @@ from ..utils.retrieval_helpers import (
     build_search_result,
     deduplicate_chunks_to_sources,
 )
+from ..utils.descriptions import build_search_description
 
 
 def hybrid_search(
@@ -32,7 +33,9 @@ def hybrid_search(
     top_k_semantic: int = 50,
     top_k_fts: int = 50,
     rrf_k: int = 60,
-) -> Callable[[dict[str, Any], EventEmitter], AsyncGenerator[str | None, None]]:
+) -> tuple[
+    Callable[[dict[str, Any], EventEmitter], AsyncGenerator[str | None, None]], str
+]:
     """Creates a simple search step with no query expansion.
 
     The step:
@@ -69,6 +72,10 @@ def hybrid_search(
                 "semantic_query": queries,
                 "keyword_query": keywords,
             },
+            description=build_search_description(
+                keywords=keywords,
+                queries=queries,
+            ),
         )
 
         semantic_chunks = await connector.batch_vector_search(
@@ -109,4 +116,4 @@ def hybrid_search(
         # Emit the deduplicated source list as a stream event
         yield emitter.sources(sources)
 
-    return _hybrid_search
+    return _hybrid_search, "Søger blandt Lex's artikler"

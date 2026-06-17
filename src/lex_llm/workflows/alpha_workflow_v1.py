@@ -179,10 +179,7 @@ def get_workflow(request: WorkflowRunRequest) -> Orchestrator:
     """Configures and returns the RAG workflow orchestrator."""
     return Orchestrator(
         request=request,
-        steps=[
-            search_knowledge_base,
-            generate_response,
-        ],
+        steps=[(search_knowledge_base, ""), (generate_response, "")],
         context={"conversation_history": request.conversation_history},
     )
 

@@ -113,7 +113,7 @@ _INTERPRET_AND_ROUTE_SYSTEM = f"""Du er en analytiker for Lex, en dansk encyklop
 Returner KUN et JSON-objekt med følgende felter:
 - "interpretation": En klar, præcis sætning der beskriver din fortolkning af brugerens spørgsmål
 - "in_scope": true eller false
-- "reason": En kort forklaring af hvorfor spørgsmålet er inden for eller uden for scope
+- "reason": (Kun hvis in_scope er false) En kort forklaring af hvorfor spørgsmålet er uden for scope
 - "keywords": (Kun hvis in_scope er true) En liste af nøgleordssøgninger udledt fra forespørgslen, som kan bruges til at finde relevante artikler i en encyklopædi
 - "subqueries": (Kun hvis in_scope er true) Omformulér forespørgslen til et eller flere underspørgsmål, der tilsammen besvarer brugerens originale forespørgsel.
 

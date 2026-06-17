@@ -28,6 +28,7 @@ from ..utils.retrieval_helpers import (
     build_search_result,
     deduplicate_chunks_to_sources,
 )
+from ..utils.descriptions import build_search_description
 from .llm_json import parse_json_response
 
 
@@ -38,7 +39,9 @@ def search_with_expansion(
     top_k_semantic: int = 50,
     top_k_fts: int = 50,
     rrf_k: int = 60,
-) -> Callable[[dict[str, Any], EventEmitter], AsyncGenerator[str | None, None]]:
+) -> tuple[
+    Callable[[dict[str, Any], EventEmitter], AsyncGenerator[str | None, None]], str
+]:
     """Creates a search step that expands the query and performs hybrid retrieval.
 
     The step:
@@ -77,6 +80,7 @@ def search_with_expansion(
                 "user_input": user_input,
                 "interpretation": interpretation,
             },
+            description="Udvider søgningen med relaterede termer",
         )
 
         semantic_queries, keyword_queries = await _expand_queries(
@@ -103,6 +107,10 @@ def search_with_expansion(
                 "semantic_queries": semantic_queries,
                 "keyword_queries": keyword_queries,
             },
+            description=build_search_description(
+                keywords=keyword_queries,
+                queries=semantic_queries,
+            ),
         )
 
         semantic_chunks = await connector.batch_vector_search(
@@ -148,7 +156,7 @@ def search_with_expansion(
         # Emit the deduplicated source list as a stream event
         yield emitter.sources(sources)
 
-    return _search_with_expansion
+    return _search_with_expansion, "Søger blandt Lex's artikler"
 
 
 # ---------------------------------------------------------------------------

@@ -12,7 +12,9 @@ from .llm_json import parse_json_response
 
 def generate_definitions(
     llm_provider: LLMProvider,
-) -> Callable[[dict[str, Any], EventEmitter], AsyncGenerator[str | None, None]]:
+) -> tuple[
+    Callable[[dict[str, Any], EventEmitter], AsyncGenerator[str | None, None]], str
+]:
     """Creates a step that extracts key term definitions from the answer body.
 
     Uses structured JSON output to return a list of term-definition pairs.
@@ -60,4 +62,4 @@ def generate_definitions(
         if definitions:
             yield emitter.definitions(definitions)
 
-    return _generate_definitions
+    return _generate_definitions, "Definerer fagtermer"
