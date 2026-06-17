@@ -12,7 +12,9 @@ from .llm_json import parse_json_response
 
 def interpret_and_route(
     llm_provider: LLMProvider,
-) -> tuple[Callable[[dict[str, Any], EventEmitter], AsyncGenerator[str | None, None]], str]:
+) -> tuple[
+    Callable[[dict[str, Any], EventEmitter], AsyncGenerator[str | None, None]], str
+]:
     """Creates a step that interprets the user query and routes by scope.
 
     Uses a single LLM call to both interpret the query and determine

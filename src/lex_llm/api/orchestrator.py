@@ -50,7 +50,11 @@ class Orchestrator:
         self._step_telemetries: list[dict[str, Any]] = []
 
     async def _run_step(
-        self, step_func: StepFunc, step_id: str, step_name: str, step_description: str | None
+        self,
+        step_func: StepFunc,
+        step_id: str,
+        step_name: str,
+        step_description: str | None,
     ) -> AsyncGenerator[str, None]:
         """Run a single step, wrapping it with workflow_step events."""
         yield self.emitter.workflow_step(
@@ -107,7 +111,6 @@ class Orchestrator:
         step_id = str(uuid.uuid4())
         step_name = parallel.__name__
 
-
         queue: asyncio.Queue[str | None] = asyncio.Queue()
         step_count = len(parallel.steps)
 
@@ -124,7 +127,9 @@ class Orchestrator:
                 await queue.put(None)  # Signal this step is done
 
         tasks = [asyncio.create_task(_drain_step(step)) for step, _ in parallel.steps]
-        step_description = "Udfører følgende opgaver:\n\n" + "\n".join([description for _, description in parallel.steps])
+        step_description = "Udfører følgende opgaver:\n\n" + "\n".join(
+            [description for _, description in parallel.steps]
+        )
         yield self.emitter.workflow_step(
             WorkflowStepData(
                 step_id=step_id,
@@ -188,7 +193,9 @@ class Orchestrator:
                     step_id = str(uuid.uuid4())
                     step_name = step.__name__
                     step_count += 1
-                    async for event in self._run_step(step, step_id, step_name, description):
+                    async for event in self._run_step(
+                        step, step_id, step_name, description
+                    ):
                         yield event
                 # Check for early termination
                 if self.context.get("_workflow_done"):

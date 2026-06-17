@@ -52,7 +52,9 @@ def retrieval_cascade(
     top_k_semantic: int = 50,
     top_k_fts: int = 50,
     rrf_k: int = 60,
-) -> tuple[Callable[[dict[str, Any], EventEmitter], AsyncGenerator[str | None, None]], str]:
+) -> tuple[
+    Callable[[dict[str, Any], EventEmitter], AsyncGenerator[str | None, None]], str
+]:
     """Creates a step that searches the knowledge base with a three-stage progressive strategy.
 
     The three stages escalate in compute cost, stopping as soon as a stage

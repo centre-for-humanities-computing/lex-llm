@@ -146,7 +146,7 @@ async def test_workflow_metrics_event_emitted(
     request_fixture: WorkflowRunRequest,
 ) -> None:
     """After a normal run the workflow_metrics event must precede stream_end."""
-    orch = Orchestrator(request_fixture, [_noop_step], workflow_id="test_wf")
+    orch = Orchestrator(request_fixture, [(_noop_step, "")], workflow_id="test_wf")
     events = [e async for e in orch.execute()]
 
     # Find workflow_metrics and stream_end
@@ -178,7 +178,9 @@ async def test_ttft_measured_on_text_chunk(
     request_fixture: WorkflowRunRequest,
 ) -> None:
     """When a step emits text_chunk, ttft_answer_ms and ttft_any_ms must be set."""
-    orch = Orchestrator(request_fixture, [_streaming_step], workflow_id="ttft_test")
+    orch = Orchestrator(
+        request_fixture, [(_streaming_step, "")], workflow_id="ttft_test"
+    )
     events = [e async for e in orch.execute()]
 
     metrics = None
@@ -199,7 +201,7 @@ async def test_deferral_outcome(
     request_fixture: WorkflowRunRequest,
 ) -> None:
     """When a step sets _workflow_done, outcome must be 'deferral'."""
-    orch = Orchestrator(request_fixture, [_ddg_step], workflow_id="defer_test")
+    orch = Orchestrator(request_fixture, [(_ddg_step, "")], workflow_id="defer_test")
     events = [e async for e in orch.execute()]
 
     metrics = None
@@ -219,7 +221,7 @@ async def test_error_outcome(
     request_fixture: WorkflowRunRequest,
 ) -> None:
     """When a step raises, outcome must be 'error' and workflow_metrics still emitted."""
-    orch = Orchestrator(request_fixture, [_failing_step], workflow_id="err_test")
+    orch = Orchestrator(request_fixture, [(_failing_step, "")], workflow_id="err_test")
     events = [e async for e in orch.execute()]
 
     # Should have an error event
@@ -240,7 +242,7 @@ async def test_step_duration_in_output(
     request_fixture: WorkflowRunRequest,
 ) -> None:
     """Each completed workflow_step event must carry duration_ms in output."""
-    orch = Orchestrator(request_fixture, [_noop_step], workflow_id="dur_test")
+    orch = Orchestrator(request_fixture, [(_noop_step, "")], workflow_id="dur_test")
     events = [e async for e in orch.execute()]
 
     completed_steps = [
@@ -280,7 +282,7 @@ async def test_route_callback_captured_in_step_telemetry(
             )
         yield emitter.text_chunk(result)
 
-    orch = Orchestrator(request_fixture, [_llm_step], workflow_id="route_test")
+    orch = Orchestrator(request_fixture, [(_llm_step, "")], workflow_id="route_test")
     events = [e async for e in orch.execute()]
 
     # Find the completed step output
@@ -322,7 +324,7 @@ async def test_fallback_on_overload(
             )
         yield emitter.text_chunk(result)
 
-    orch = Orchestrator(request_fixture, [_llm_step], workflow_id="fallback_test")
+    orch = Orchestrator(request_fixture, [(_llm_step, "")], workflow_id="fallback_test")
     events = [e async for e in orch.execute()]
 
     completed = [
@@ -361,7 +363,7 @@ async def test_fallback_on_primary_error(
             )
         yield emitter.text_chunk(result)
 
-    orch = Orchestrator(request_fixture, [_llm_step], workflow_id="failover_test")
+    orch = Orchestrator(request_fixture, [(_llm_step, "")], workflow_id="failover_test")
     events = [e async for e in orch.execute()]
 
     completed = [
@@ -383,7 +385,7 @@ async def test_workflow_metrics_e2e_positive(
     request_fixture: WorkflowRunRequest,
 ) -> None:
     """e2e_ms should be a positive number for any non-empty workflow."""
-    orch = Orchestrator(request_fixture, [_noop_step], workflow_id="e2e_test")
+    orch = Orchestrator(request_fixture, [(_noop_step, "")], workflow_id="e2e_test")
     events = [e async for e in orch.execute()]
 
     metrics = None

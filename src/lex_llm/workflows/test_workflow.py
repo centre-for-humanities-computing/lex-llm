@@ -351,11 +351,26 @@ def get_workflow(request: WorkflowRunRequest) -> Orchestrator:
     return Orchestrator(
         request=request,
         steps=[
-            query_analysis_step,
-            knowledge_base_search_step,
-            external_source_search_step,
-            information_synthesis_step,
-            response_generation_step,
+            (
+                query_analysis_step,
+                "Analyzing the user query to understand intent and information needs",
+            ),
+            (
+                knowledge_base_search_step,
+                "Searching the internal knowledge base for relevant documents",
+            ),
+            (
+                external_source_search_step,
+                "Performing a web search for additional relevant information",
+            ),
+            (
+                information_synthesis_step,
+                "Synthesizing information from all sources and fact-checking claims",
+            ),
+            (
+                response_generation_step,
+                "Generating a comprehensive response for the user",
+            ),
         ],
         context={
             "conversation_history": request.conversation_history,

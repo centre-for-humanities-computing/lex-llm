@@ -33,7 +33,9 @@ def hybrid_search(
     top_k_semantic: int = 50,
     top_k_fts: int = 50,
     rrf_k: int = 60,
-) -> tuple[Callable[[dict[str, Any], EventEmitter], AsyncGenerator[str | None, None]], str]:
+) -> tuple[
+    Callable[[dict[str, Any], EventEmitter], AsyncGenerator[str | None, None]], str
+]:
     """Creates a simple search step with no query expansion.
 
     The step:

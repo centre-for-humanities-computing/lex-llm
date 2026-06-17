@@ -11,7 +11,9 @@ from ..prompts_search_synthesis import get_deferral_prompt
 
 def generate_deferral(
     llm_provider: LLMProvider,
-) -> tuple[Callable[[dict[str, Any], EventEmitter], AsyncGenerator[str | None, None]], str]:
+) -> tuple[
+    Callable[[dict[str, Any], EventEmitter], AsyncGenerator[str | None, None]], str
+]:
     """Creates a step that generates a deferral message for out-of-scope queries.
 
     If the query is in scope (context["is_in_scope"] is True), this step

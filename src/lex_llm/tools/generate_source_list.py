@@ -13,7 +13,9 @@ from .llm_json import parse_json_response
 
 def generate_source_list(
     llm_provider: LLMProvider,
-) -> tuple[Callable[[dict[str, Any], EventEmitter], AsyncGenerator[str | None, None]], str]:
+) -> tuple[
+    Callable[[dict[str, Any], EventEmitter], AsyncGenerator[str | None, None]], str
+]:
     """Creates a step that identifies which sources were used in the answer.
 
     Uses LLM analysis to determine which retrieved documents were actually

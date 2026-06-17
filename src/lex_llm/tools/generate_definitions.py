@@ -12,7 +12,9 @@ from .llm_json import parse_json_response
 
 def generate_definitions(
     llm_provider: LLMProvider,
-) -> tuple[Callable[[dict[str, Any], EventEmitter], AsyncGenerator[str | None, None]], str]:
+) -> tuple[
+    Callable[[dict[str, Any], EventEmitter], AsyncGenerator[str | None, None]], str
+]:
     """Creates a step that extracts key term definitions from the answer body.
 
     Uses structured JSON output to return a list of term-definition pairs.

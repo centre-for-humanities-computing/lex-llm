@@ -45,7 +45,9 @@ def retrieval_cascade_fast(
     top_k_semantic: int = 40,
     top_k_fts: int = 40,
     rrf_k: int = 60,
-) -> tuple[Callable[[dict[str, Any], EventEmitter], AsyncGenerator[str | None, None]], str]:
+) -> tuple[
+    Callable[[dict[str, Any], EventEmitter], AsyncGenerator[str | None, None]], str
+]:
     """Creates a fast two-stage retrieval cascade step.
 
     Uses keywords and subqueries from ``interpret_and_route`` (set earlier
