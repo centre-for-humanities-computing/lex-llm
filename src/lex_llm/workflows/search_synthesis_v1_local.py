@@ -86,8 +86,9 @@ def get_workflow(request: WorkflowRunRequest) -> Orchestrator:
 
 def get_metadata() -> dict:
     return {
-        "workflow_id": "search_synthesis_v2",
-        "name": "Search & Synthesis v2",
+        "workflow_id": "search_synthesis_v1_local",
+        "name": "Search & Synthesis v1 local version",
+        "status": "deprecated",
         "description": (
             "A search-and-synthesis workflow that restructures answers into "
             "5 sections: lead paragraph, body, definitions, interpretation, "

@@ -309,6 +309,7 @@ def get_metadata() -> dict:
         "workflow_id": "test_workflow",
         "name": "Test Workflow",
         "description": "Performs a mocked multi-step research and synthesis workflow.",
+        "status": "deprecated",
         "input_schema": {
             "type": "object",
             "properties": {

@@ -76,6 +76,7 @@ def get_metadata() -> dict:
     return {
         "workflow_id": "search_synthesis_v1",
         "name": "Search & Synthesis v1",
+        "status": "deprecated",
         "description": (
             "A search-and-synthesis workflow that restructures answers into "
             "5 sections: lead paragraph, body, definitions, interpretation, "

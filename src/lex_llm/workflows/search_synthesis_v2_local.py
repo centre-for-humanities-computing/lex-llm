@@ -89,6 +89,7 @@ def get_metadata() -> dict:
     return {
         "workflow_id": "search_synthesis_v2_local",
         "name": "Search & Synthesis v2 (fast) local version",
+        "status": "deprecated",
         "description": (
             "A latency-optimized search-and-synthesis workflow that restructures "
             "answers into 4 sections: interpretation, lead paragraph (bold), "

@@ -60,6 +60,7 @@ def get_metadata() -> dict:
     return {
         "workflow_id": "editorial_workflow_v1_gemma4_26b",
         "name": "Editorial workflow v1 Gemma 4 26B cloud version",
+        "status": "active",
         "description": (
             "A latency-optimized search-and-synthesis workflow that restructures "
             "answers into 4 sections: interpretation, lead paragraph, "

@@ -53,6 +53,7 @@ def get_metadata() -> dict:
     return {
         "workflow_id": "chat_v1_gemma4_26b",
         "name": "Chat v1 Gemma 4 26B version",
+        "status": "active",
         "description": (
             "Faster variant of Beta Workflow v4 using Google Gemma 4 26B through Cortecs. "
             "Generates a response with sources in a single streaming LLM call, "

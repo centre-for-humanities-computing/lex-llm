@@ -42,6 +42,7 @@ def get_metadata() -> dict:
     return {
         "workflow_id": "intermediate_search_v1",
         "name": "Intermediate Search v1",
+        "status": "active",
         "description": (
             "A search-only workflow that returns a list of matching articles "
             "without summarization or answer generation. Uses query expansion "

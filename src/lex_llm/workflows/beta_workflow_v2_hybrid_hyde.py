@@ -39,6 +39,7 @@ def get_metadata() -> dict:
     return {
         "workflow_id": "beta_workflow_v2_hybrid_hyde",
         "name": "Beta Workflow v2 with different search methods",
+        "status": "inactive",
         "description": (
             "Version 2 of the beta workflow using Hybrid HyDE search method "
             "(combines HyDE-generated hypothetical documents with full-text "

@@ -35,6 +35,7 @@ def get_metadata() -> dict:
     return {
         "workflow_id": "beta_workflow_v1_large",
         "name": "Beta Workflow v1 with large embeddings",
+        "status": "deprecated",
         "description": (
             "Version 1 of the beta workflow using Google Gemma 3 27B "
             "via OpenRouter and the multilingual e5 large embedding model hosted locally. "
