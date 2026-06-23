@@ -42,6 +42,7 @@ def get_metadata() -> dict:
     return {
         "workflow_id": "beta_workflow_v2_hybrid",
         "name": "Beta Workflow v2 with different search methods",
+        "status": "deprecated",
         "description": (
             "Version 2 of the beta workflow using hybrid search method "
             "(combines semantic search with full-text search using RRF)."

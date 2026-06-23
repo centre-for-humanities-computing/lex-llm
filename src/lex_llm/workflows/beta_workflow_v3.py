@@ -49,6 +49,7 @@ def get_metadata() -> dict:
     return {
         "workflow_id": "beta_workflow_v3",
         "name": "Beta Workflow v3",
+        "status": "deprecated",
         "description": (
             "Version 3 of the beta workflow using Google Gemma 4 26B "
             "via Scaleway and the multilingual e5 large embedding model hosted locally. "

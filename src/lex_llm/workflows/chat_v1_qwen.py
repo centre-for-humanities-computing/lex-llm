@@ -57,6 +57,7 @@ def get_metadata() -> dict:
     return {
         "workflow_id": "chat_v1_qwen",
         "name": "Chat v1 Qwen 3.5 cloud version",
+        "status": "active",
         "description": (
             "Faster variant of Beta Workflow v4 using Google Gemma 4 26B and Qwen 3.5 "
             "through Cortecs. "

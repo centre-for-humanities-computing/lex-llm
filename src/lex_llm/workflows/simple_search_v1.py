@@ -35,6 +35,7 @@ def get_metadata() -> dict:
     return {
         "workflow_id": "simple_search_v1",
         "name": "Simple Search v1",
+        "status": "active",
         "description": (
             "The simplest search workflow: the raw user query is used "
             "directly for both semantic (vector) and full-text search, "

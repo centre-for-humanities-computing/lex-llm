@@ -189,6 +189,7 @@ def get_metadata() -> dict:
         "workflow_id": "alpha_workflow_v1",
         "name": "Alpha Workflow v1",
         "description": "Version 1 of the workflow for the alpha version. Performs a simple retrieval-augmented generation (RAG) using a knowledge base and an LLM and outputs a source list.",
+        "status": "inactive",
         "steps": [
             {
                 "name": "Knowledge Base Search",

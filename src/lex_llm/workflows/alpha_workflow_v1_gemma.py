@@ -34,6 +34,7 @@ def get_metadata() -> dict:
         "workflow_id": "alpha_workflow_v1_gemma",
         "name": "Alpha Workflow v1 (Gemma)",
         "description": "Version 1 of the workflow using Google Gemma 3 27B via OpenRouter. Performs a simple retrieval-augmented generation (RAG) using a knowledge base and outputs a source list.",
+        "status": "inactive",
         "steps": [
             {
                 "name": "Knowledge Base Search",

@@ -81,6 +81,7 @@ def get_metadata() -> dict:
     return {
         "workflow_id": "beta_workflow_v4_local",
         "name": "Beta Workflow v4 (fast) local version",
+        "status": "deprecated",
         "description": (
             "Fast variant of Beta Workflow v3 using Google Gemma 4 26B and 4 "
             "E2B via local DGX Spark with Gemma 4 26B A4B on Scaleway as backup. "

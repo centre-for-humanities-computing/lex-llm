@@ -64,6 +64,7 @@ def get_metadata() -> dict:
     return {
         "workflow_id": "editorial_workflow_v1_qwen",
         "name": "Editorial workflow v1 Qwen 3.5 cloud version",
+        "status": "active",
         "description": (
             "A latency-optimized search-and-synthesis workflow that restructures "
             "answers into 4 sections: interpretation, lead paragraph, "
