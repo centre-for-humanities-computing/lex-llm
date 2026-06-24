@@ -185,4 +185,4 @@ def generate_answer_body(
 
         context["answer_body"] = full_response
 
-    return _generate_answer_body, "Skriver brødtekst ud fra fundne kilder"
+    return _generate_answer_body, "Skriver brødtekst ud fra fundne kilder..."

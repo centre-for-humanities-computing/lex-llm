@@ -204,4 +204,5 @@ def generate_lead_and_body(
         context["answer_body"] = full_response
         context["lead_paragraph"] = ""
 
-    return _generate_lead_and_body, "Genererer svar ud fra de fundne kilder"
+    return _generate_lead_and_body, "Skriver svar ud fra de fundne kilder..."
+

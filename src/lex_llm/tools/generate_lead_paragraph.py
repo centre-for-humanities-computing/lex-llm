@@ -64,4 +64,4 @@ def generate_lead_paragraph(
 
         context["lead_paragraph"] = full_paragraph
 
-    return _generate_lead_paragraph, "Skriver manchet"
+    return _generate_lead_paragraph, "Skriver manchet..."

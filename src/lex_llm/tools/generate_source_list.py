@@ -126,7 +126,7 @@ def generate_source_list(
             definitions=definitions,
         )
 
-    return _generate_source_list, "Skriver kildeliste"
+    return _generate_source_list, "Skriver kildeliste..."
 
 
 def _compose_final_response(

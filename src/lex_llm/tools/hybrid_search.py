@@ -116,4 +116,4 @@ def hybrid_search(
         # Emit the deduplicated source list as a stream event
         yield emitter.sources(sources)
 
-    return _hybrid_search, "Søger blandt Lex's artikler"
+    return _hybrid_search, "Søger blandt Lex's artikler..."

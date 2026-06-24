@@ -62,4 +62,4 @@ def generate_definitions(
         if definitions:
             yield emitter.definitions(definitions)
 
-    return _generate_definitions, "Definerer fagtermer"
+    return _generate_definitions, "Definerer fagtermer..."

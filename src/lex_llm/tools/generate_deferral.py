@@ -59,4 +59,4 @@ def generate_deferral(
         context["final_response"] = deferral_message
         context["_workflow_done"] = True
 
-    return _generate_deferral, "Vurderer brugerens forespørgsel"
+    return _generate_deferral, "Vurderer din forespørgsel..."
