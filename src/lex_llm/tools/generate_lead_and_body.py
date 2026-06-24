@@ -205,4 +205,3 @@ def generate_lead_and_body(
         context["lead_paragraph"] = ""
 
     return _generate_lead_and_body, "Skriver svar ud fra de fundne kilder..."
-

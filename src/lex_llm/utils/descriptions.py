@@ -31,8 +31,8 @@ def build_search_description(
 
     parts: list[str] = []
     if keywords:
-        parts.append("\nSøger med nøgleord: \"" + "\", \"".join(keywords) + "\"")
+        parts.append('\nSøger med nøgleord: "' + '", "'.join(keywords) + '"')
     if queries:
-        parts.append("\nSøger med underspørgsmål: \"" + "\", \"".join(queries) + "\"")
+        parts.append('\nSøger med underspørgsmål: "' + '", "'.join(queries) + '"')
 
     return "\n\n".join(parts)
