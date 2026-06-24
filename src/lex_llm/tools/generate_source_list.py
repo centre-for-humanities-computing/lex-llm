@@ -22,9 +22,12 @@ def generate_source_list(
     referenced in the answer body, then emits the source list and composes
     the final response for conversation history.
 
+    The system prompt for conversation history is set by the upstream
+    generation step (e.g. generate_lead_and_body) — this step does not
+    touch it.
+
     Sets context keys:
         - used_sources: list[Dict] — the used source articles
-        - system_prompt: str — system prompt with sources for conversation history
         - final_response: str — the complete structured answer for history
     """
 
@@ -40,7 +43,6 @@ def generate_source_list(
         interpretation: str = context.get("query_interpretation", "")
         lead_paragraph: str = context.get("lead_paragraph", "")
         definitions = context.get("definitions", [])
-        system_prompt_base: str = context.get("system_prompt_base", "")
 
         if not answer_body or not retrieved_docs:
             # No sources to attribute
@@ -85,7 +87,7 @@ def generate_source_list(
         # Filter retrieved docs by matched IDs
         used_docs = [doc for doc in retrieved_docs if str(doc.id) in used_ids]
 
-        # Store used sources as dicts for conversation history
+        # Store used sources as dicts
         used_sources_data = [
             {
                 "id": str(doc.id),
@@ -96,19 +98,6 @@ def generate_source_list(
             for doc in used_docs
         ]
         context["used_sources"] = used_sources_data
-
-        # Build system prompt with sources for conversation history
-        system_prompt_with_sources = system_prompt_base
-        if used_sources_data:
-            artikler_text = "\n\n".join(
-                [
-                    f"Titel: {src['title']}\nIndhold: {src['text']}\nURL: {src['url']}\nID: {src['id']}"
-                    for src in used_sources_data
-                ]
-            )
-            system_prompt_with_sources += f"\n\n## Artikler\n{artikler_text}"
-
-        context["system_prompt"] = system_prompt_with_sources
 
         # Emit sources
         yield emitter.sources(

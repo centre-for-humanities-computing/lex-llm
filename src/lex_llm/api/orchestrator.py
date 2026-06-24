@@ -218,38 +218,27 @@ class Orchestrator:
 
         # After all steps, construct the final history and end the stream
         final_assistant_message = self.context.get("final_response", "")
-        user_message = self.context.get(
-            "user_message_with_sources", self.request.user_input
-        )
-        system_prompt_with_sources = self.context.get("system_prompt", "")
+        user_message = self.request.user_input
+        system_prompt = self.context.get("system_prompt", "")
 
-        # Build the new history
-        new_history = []
-        if system_prompt_with_sources and not self.request.conversation_history:
-            # First message: include system prompt with used sources
-            new_history.append(
-                ConversationMessage(role="system", content=system_prompt_with_sources)
-            )
-
-        new_history += [
+        # Build the new turn (user + assistant pair)
+        new_turn = [
             ConversationMessage(role="user", content=user_message),
             ConversationMessage(role="assistant", content=final_assistant_message),
         ]
 
-        # For follow-up messages, update the system prompt in history
-        if self.request.conversation_history and system_prompt_with_sources:
-            # Replace old system message with updated one containing all used sources
-            updated_history = [
-                ConversationMessage(role="system", content=system_prompt_with_sources)
-            ]
-            # Add all user/assistant pairs from previous history
-            for msg in self.request.conversation_history:
-                if msg.role in ["user", "assistant"]:
-                    updated_history.append(msg)
-            # Add new user/assistant pair
-            updated_history += new_history
+        # Build the updated history
+        if not self.request.conversation_history:
+            # First turn: prepend system prompt if set
+            updated_history = []
+            if system_prompt:
+                updated_history.append(
+                    ConversationMessage(role="system", content=system_prompt)
+                )
+            updated_history += new_turn
         else:
-            updated_history = self.request.conversation_history + new_history
+            # Follow-up: preserve existing history as-is, append new turn
+            updated_history = list(self.request.conversation_history) + new_turn
 
         yield self.emitter.stream_end(conversation_history=updated_history)
 
