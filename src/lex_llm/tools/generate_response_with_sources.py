@@ -228,4 +228,4 @@ def generate_response_with_sources(
             ]
         )
 
-    return generate_response_with_sources, "Skriver svar ud fra fundne kilder"
+    return generate_response_with_sources, "Skriver svar ud fra fundne kilder..."

@@ -106,4 +106,4 @@ def interpret_and_route(
         # Emit the interpretation as a stream event
         yield emitter.interpretation_chunk(interpretation)
 
-    return _interpret_and_route, "Analyserer og fortolker brugerens spørgsmål"
+    return _interpret_and_route, "Analyserer og fortolker din forespørgsel..."
