@@ -33,6 +33,10 @@ class DGXProvider(LLMProvider):
     ``http://10.57.5.14:80``.  The provider constructs the full
     ``api_base`` as ``{server_url}/{model}/v1`` so the model name
     in the URL matches the ``id`` returned by ``/v1/models``.
+
+    Raises ``RuntimeError`` from ``generate_stream`` if
+    ``INFERENCE_SERVER_XAUTH`` is not set, so that routing providers
+    can detect the misconfiguration and fall back to an alternative.
     """
 
     def __init__(
@@ -43,13 +47,20 @@ class DGXProvider(LLMProvider):
         self.model = model
         _server = (server_url or os.environ["INFERENCE_SERVER_URL"]).rstrip("/")
         self.base_url = f"{_server}/{model}/v1"
+        self._xauth_token: str | None = os.environ.get("INFERENCE_SERVER_XAUTH")
 
     async def generate_stream(
         self, messages: List[ConversationMessage]
     ) -> AsyncGenerator[str, None]:
+        if not self._xauth_token:
+            raise RuntimeError(
+                "INFERENCE_SERVER_XAUTH is not set; cannot call DGX inference server"
+            )
         messages_dicts = [m.model_dump() for m in messages]
         run_id = _run_id.get()
-        extra_headers = {"X-Lex-Run-Id": run_id} if run_id else {}
+        extra_headers: dict[str, str] = {"X-Auth-Token": self._xauth_token}
+        if run_id:
+            extra_headers["X-Lex-Run-Id"] = run_id
         stream = await litellm.acompletion(
             model=self.model,
             messages=messages_dicts,
