@@ -22,7 +22,10 @@ from ..tools import (
     generate_lead_and_body_v2,
     generate_source_list_v2,
 )
-from ..prompts_search_synthesis import get_lead_and_body_prompt
+from ..prompts_search_synthesis import (
+    get_lead_and_body_prompt_v2,
+    _format_date as _format_date,
+)
 from datetime import date
 
 _llm = CortecsProvider(
@@ -45,10 +48,10 @@ def get_workflow(request: WorkflowRunRequest) -> Orchestrator:
             ),
             generate_lead_and_body_v2(
                 llm_provider=_llm,
-                system_prompt=get_lead_and_body_prompt(
-                    date.today(),
+                system_prompt=get_lead_and_body_prompt_v2(
                     workflow_description=get_metadata().get("description"),
                 ),
+                current_date=_format_date(date.today()),
             ),
             generate_source_list_v2(llm_provider=_llm),
         ],

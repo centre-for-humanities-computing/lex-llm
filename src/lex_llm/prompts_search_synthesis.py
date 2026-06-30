@@ -766,3 +766,42 @@ def get_lead_and_body_prompt(
         prompt += "\n# Kontekstuel information\n" + "\n".join(context_parts) + "\n"
 
     return prompt
+
+
+# ---------------------------------------------------------------------------
+# 15. Lead & Body merged prompt — v2 (clean history)
+# ---------------------------------------------------------------------------
+
+_LEAD_AND_BODY_SYSTEM_V2 = f"""Du er en encyklopædisk forfatter for Lex, en dansk encyklopædi. Din opgave er at skrive et kort, struktureret svar der besvarer brugerens forespørgsel, udelukkende baseret på de leverede kilder.
+
+{_LEX_GENERATION_RULES}
+
+# Struktur
+- Start med en KORT manchet (2-4 sætninger) der bringer konklusionen og de vigtigste pointer i forgrunden.
+- Manchetten skal ikke være i fed. Den skal kunne stå alene som et hurtigt svar.
+- Efter manchetten, indsæt en tom linje.
+- Derefter, skriv en sammenhængende brødtekst der uddyber svaret med kontekst, baggrund og nuancering. Gentag ikke manchetten ordret — uddyb i stedet.
+- Skriv IKKE en indledning der forklarer hvordan du vil besvare spørgsmålet — gå direkte til sagen.
+- Skriv IKKE definitioner eller forklaringer af termer medmindre de passer naturligt ind i tekstens flow.
+- Lav IKKE en kildeliste og brug IKKE markdown-links eller kildehenvisninger direkte i teksten. Hvis du citerer direkte fra en artikel, skal det være ordret.
+
+# Kilder
+De artikler der er relevante for brugerens aktuelle spørgsmål er vedlagt i brugerens besked under sektionen "Kilder". Brug kun disse artikler til at besvare spørgsmålet. Samtalehistorikken giver kontekst fra tidligere spørgsmål og svar — fortolk altid brugerens spørgsmål i lyset af samtalehistorikken, ikke kun de aktuelle kilder.
+"""
+
+
+def get_lead_and_body_prompt_v2(
+    workflow_description: str | None = None,
+) -> str:
+    """Build the system prompt for merged lead + body generation (v2 / clean history).
+
+    Same structure as ``get_lead_and_body_prompt`` but the source
+    instructions describe the per-turn user-message scheme instead of
+    the old Artikler / Potentielle kilder system-prompt sections.
+    """
+    prompt = _LEAD_AND_BODY_SYSTEM_V2
+
+    if workflow_description is not None:
+        prompt += f"\n# Kontekstuel information\n- Workflow: {workflow_description}\n"
+
+    return prompt

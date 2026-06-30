@@ -41,22 +41,42 @@ def build_user_message_with_sources(
     user_input: str,
     retrieved_chunks: list[LexChunk] | None = None,
     retrieved_docs: list[LexArticle] | None = None,
+    *,
+    current_date: str | None = None,
 ) -> str:
-    """Build a user message with retrieved sources appended.
+    """Build a user message with current date and retrieved sources appended.
 
     Sources are sorted by (article_id, chunk_seq) and grouped into articles
-    to maximize KV-cache hits during generation. The sources block is
-    appended under a ``# Kilder`` heading.
+    to maximize KV-cache hits during generation.
+
+    The message is structured as (each section only if present)::
+
+        {user_input}
+
+        # Aktuel dato
+        {current_date}
+
+        # Kilder
+        {sources_block}
+
+    Neither the date nor the sources are persisted in conversation history —
+    they are fresh for every turn.
 
     Args:
         user_input: The clean user query.
+        current_date: Today's date in Danish format (e.g. "30. juni 2026").
         retrieved_chunks: Raw chunks from retrieval (sorted + grouped).
         retrieved_docs: Pre-grouped articles (used as-is).
 
     Returns:
-        The user message with sources appended, or just user_input if
-        no sources are provided.
+        The user message with date and sources appended, or just user_input if
+        neither is provided.
     """
+    parts = [user_input]
+
+    if current_date:
+        parts.append(f"# Aktuel dato\n{current_date}")
+
     if retrieved_chunks:
         sorted_chunks = sorted(
             retrieved_chunks, key=lambda c: (c.article_id, c.chunk_seq)
@@ -65,10 +85,10 @@ def build_user_message_with_sources(
     elif retrieved_docs:
         articles = retrieved_docs
     else:
-        return user_input
+        articles = []
 
-    if not articles:
-        return user_input
+    if articles:
+        sources_block = format_sources_block(articles)
+        parts.append(f"# Kilder\n{sources_block}")
 
-    sources_block = format_sources_block(articles)
-    return f"{user_input}\n\n# Kilder\n{sources_block}"
+    return "\n\n".join(parts)

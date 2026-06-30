@@ -26,6 +26,8 @@ from .source_formatting import build_user_message_with_sources
 def generate_lead_and_body_v2(
     llm_provider: LLMProvider,
     system_prompt: str,
+    *,
+    current_date: str | None = None,
 ) -> tuple[
     Callable[[dict[str, Any], EventEmitter], AsyncGenerator[str | None, None]], str
 ]:
@@ -85,10 +87,11 @@ def generate_lead_and_body_v2(
             context["_workflow_done"] = True
             return
 
-        # --- Build user message with sources ---
+        # --- Build user message with sources and date ---
         user_message_with_sources = build_user_message_with_sources(
             user_input=user_input,
             retrieved_chunks=retrieved_chunks,
+            current_date=current_date,
         )
 
         # --- Build messages: stable system prompt + history + user with sources ---

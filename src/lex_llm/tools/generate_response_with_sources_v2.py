@@ -20,10 +20,13 @@ def generate_response_with_sources_v2(
     llm_provider: LLMProvider,
     system_prompt: str,
     deferral_message: str,
+    *,
+    current_date: str | None = None,
 ) -> tuple[Callable[[dict[str, Any], EventEmitter], AsyncGenerator[str, None]], str]:
     """Same contract as ``generate_response_with_sources`` but with clean-history semantics.
 
     Sources are appended to the user message under a ``# Kilder`` heading.
+    The current date is prepended under ``# Aktuel dato``.
     The system prompt is sent verbatim. On the first turn,
     ``context["system_prompt"]`` is set to the base prompt.
     """
@@ -54,10 +57,11 @@ def generate_response_with_sources_v2(
             context["final_response"] = detailed_deferral
             return
 
-        # Build user message with retrieved sources appended
+        # Build user message with retrieved sources and date appended
         user_message_with_sources = build_user_message_with_sources(
             user_input=user_input,
             retrieved_docs=retrieved_docs,
+            current_date=current_date,
         )
 
         # Build messages: stable system prompt + history + user with sources

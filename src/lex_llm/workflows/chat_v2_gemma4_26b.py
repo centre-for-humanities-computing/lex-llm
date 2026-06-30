@@ -16,6 +16,7 @@ from ..api.orchestrator import Orchestrator
 from ..api.event_models import WorkflowRunRequest
 from ..tools import generate_response_with_sources_v2
 from ..prompts import get_deferral_message, get_system_prompt
+from ..prompts_search_synthesis import _format_date as _format_date
 
 _llm = CortecsProvider(
     model="gemma-4-26b-a4b-it", preference="speed", reasoning_effort="none"
@@ -38,11 +39,11 @@ def get_workflow(request: WorkflowRunRequest) -> Orchestrator:
             generate_response_with_sources_v2(
                 llm_provider=_llm,
                 system_prompt=get_system_prompt(
-                    version="alpha_v1",
-                    current_date=datetime.today(),
+                    version="v2",
                     workflow_description=get_metadata()["description"],
                 ),
-                deferral_message=get_deferral_message(version="alpha_v1"),
+                deferral_message=get_deferral_message(version="v2"),
+                current_date=_format_date(datetime.today()),
             ),
         ],
         context={"conversation_history": request.conversation_history},
