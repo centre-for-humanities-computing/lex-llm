@@ -1,5 +1,6 @@
 """Response generation tools with source attribution."""
 
+import re
 from collections.abc import AsyncGenerator, Callable
 from typing import Any
 from ..api.event_emitter import EventEmitter
@@ -7,7 +8,57 @@ from ..api.event_models import Source, ConversationMessage
 from ..api.connectors.lex_db_connector import LexArticle
 from ..api.connectors.openai_provider import LLMProvider
 from .extract_used_sources_via_llm import extract_used_sources_via_llm
-from .source_formatting import build_user_message_with_sources
+
+
+def _extract_used_sources_from_system_prompt(
+    conversation_history: list[ConversationMessage],
+) -> list[dict[str, str]]:
+    """
+    Extract used sources from the system prompt in conversation history.
+    Returns a list of dicts with id, title, text, and url.
+    """
+    if not conversation_history:
+        return []
+
+    # Find the system message
+    system_message = None
+    for msg in conversation_history:
+        if dict(msg)["role"] == "system":
+            system_message = dict(msg)["content"]
+            break
+
+    if not system_message:
+        return []
+
+    # Extract the "Artikler" section using regex
+    artikler_match = re.search(
+        r"## Artikler\n(.+?)(?=\n## |$)", system_message, re.DOTALL
+    )
+
+    if not artikler_match:
+        return []
+
+    artikler_section = artikler_match.group(1)
+
+    # Extract individual articles
+    # Pattern: Titel: <title>\nIndhold: <text>\nURL: <url>\nID: <id>
+    article_pattern = (
+        r"Titel: (.+?)\nIndhold: (.+?)\nURL: (.+?)\nID: (.+?)(?=\n\nTitel: |$)"
+    )
+    matches = re.finditer(article_pattern, artikler_section, re.DOTALL)
+
+    used_sources = []
+    for match in matches:
+        used_sources.append(
+            {
+                "title": match.group(1).strip(),
+                "text": match.group(2).strip(),
+                "url": match.group(3).strip(),
+                "id": match.group(4).strip(),
+            }
+        )
+
+    return used_sources
 
 
 def generate_response_with_sources(
@@ -58,23 +109,55 @@ def generate_response_with_sources(
             yield emitter.text_chunk(detailed_deferral)
             context["final_response"] = detailed_deferral
             return
-
-        # Build user message with retrieved sources appended
-        user_message_with_sources = build_user_message_with_sources(
-            user_input=user_input,
-            retrieved_docs=retrieved_docs,
+        # Extract previously used sources from conversation history (stateless)
+        previous_used_sources_data = _extract_used_sources_from_system_prompt(
+            conversation_history
         )
 
-        # Build messages: stable system prompt + history + user message with sources
-        messages: list[dict[str, str]] = [
-            {"role": "system", "content": system_prompt},
-        ]
-        for msg in conversation_history:
-            if dict(msg)["role"] in ("user", "assistant"):
-                messages.append(
-                    {"role": dict(msg)["role"], "content": dict(msg)["content"]}
-                )
-        messages.append({"role": "user", "content": user_message_with_sources})
+        # Build dynamic system prompt with sources
+        dynamic_system_prompt = system_prompt
+
+        # Add "Artikler" section if there are previously used sources
+        if previous_used_sources_data:
+            artikler_text = "\n\n".join(
+                [
+                    f"Titel: {src['title']}\nIndhold: {src['text']}\nURL: {src['url']}\nID: {src['id']}"
+                    for src in previous_used_sources_data
+                ]
+            )
+            dynamic_system_prompt += f"\n\n# Artikler\n{artikler_text}"
+
+        # Always add "Potentielle kilder" section with new retrieved docs
+        potentielle_text = "\n\n".join(
+            [
+                f"Titel: {doc.title}\nIndhold: {doc.text}\nURL: {doc.url}\nID: {doc.id}"
+                for doc in retrieved_docs
+            ]
+        )
+        dynamic_system_prompt += f"\n\n# Potentielle kilder\n{potentielle_text}"
+
+        # Prepare messages with dynamic system prompt (as dicts for LLM provider)
+        messages: list[dict[str, str]] = []
+
+        if not conversation_history:
+            # First query: include dynamic system prompt with Potentielle kilder
+            messages = [
+                {"role": "system", "content": dynamic_system_prompt},
+                {"role": "user", "content": user_input},
+            ]
+        else:
+            # Follow-up: rebuild with dynamic system prompt (Artikler + Potentielle kilder)
+            messages = [
+                {"role": "system", "content": dynamic_system_prompt},
+            ]
+            # Add conversation history (user/assistant pairs only)
+            for msg in conversation_history:
+                if dict(msg)["role"] in ["user", "assistant"]:
+                    messages.append(
+                        {"role": dict(msg)["role"], "content": dict(msg)["content"]}
+                    )
+            # Add new user message
+            messages.append({"role": "user", "content": user_input})
 
         messages_for_llm: list[ConversationMessage] = [
             ConversationMessage(role=m["role"], content=m["content"])  # type: ignore
@@ -92,11 +175,7 @@ def generate_response_with_sources(
                 yield emitter.text_chunk(chunk)
         context["final_response"] = full_response
 
-        # Set the base system prompt for conversation history (first turn only)
-        if not conversation_history:
-            context["system_prompt"] = system_prompt
-
-        # Extract which sources were actually used
+        # Extract which NEW sources (from Potentielle kilder) were actually used
         async with llm_provider.observe(telemetry=telemetry):
             newly_used_sources = await extract_used_sources_via_llm(
                 response=full_response,
@@ -104,19 +183,39 @@ def generate_response_with_sources(
                 llm_provider=llm_provider,
             )
 
-        # Store used sources for this turn
-        used_sources_data = [
-            {
-                "id": str(src.id),
-                "title": src.title,
-                "text": src.text,
-                "url": src.url if src.url else "",
-            }
-            for src in newly_used_sources
-        ]
-        context["used_sources"] = used_sources_data
+        # Merge with previous used sources, avoiding duplicates by ID
+        previous_ids = {src["id"] for src in previous_used_sources_data}
+        merged_used_sources = previous_used_sources_data.copy()
 
-        # Emit the used sources
+        for src in newly_used_sources:
+            if str(src.id) not in previous_ids:
+                merged_used_sources.append(
+                    {
+                        "id": str(src.id),
+                        "title": src.title,
+                        "text": src.text,
+                        "url": src.url if src.url else "",
+                    }
+                )
+                previous_ids.add(str(src.id))
+
+        # Store merged sources for building system prompt in next turn
+        context["used_sources"] = merged_used_sources
+
+        # Build the system prompt with "Artikler" section for conversation history
+        system_prompt_with_sources = system_prompt
+        if merged_used_sources:
+            artikler_text = "\n\n".join(
+                [
+                    f"Titel: {src['title']}\nIndhold: {src['text']}\nURL: {src['url']}\nID: {src['id']}"
+                    for src in merged_used_sources
+                ]
+            )
+            system_prompt_with_sources += f"\n\n## Artikler\n{artikler_text}"
+
+        context["system_prompt"] = system_prompt_with_sources
+
+        # Emit only the newly used sources (not the ones already in Artikler)
         yield emitter.sources(
             [
                 Source(

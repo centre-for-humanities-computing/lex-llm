@@ -150,7 +150,9 @@ async def test_first_turn_prepends_system_prompt(
         context["system_prompt"] = base_prompt
         yield "step"
 
-    orch: Orchestrator = Orchestrator(first_turn_request, [(step, "")])
+    orch: Orchestrator = Orchestrator(
+        first_turn_request, [(step, "")], use_clean_history=True
+    )
     events: List[str] = [e async for e in orch.execute()]
 
     # Find the stream_end event and inspect its conversation_history
@@ -179,7 +181,9 @@ async def test_first_turn_no_system_prompt(
         context["final_response"] = "Svar her."
         yield "step"
 
-    orch: Orchestrator = Orchestrator(first_turn_request, [(step, "")])
+    orch: Orchestrator = Orchestrator(
+        first_turn_request, [(step, "")], use_clean_history=True
+    )
     events: List[str] = [e async for e in orch.execute()]
 
     end_event = next(e for e in events if "stream_end" in e)
@@ -205,7 +209,9 @@ async def test_follow_up_preserves_existing_history(
         context["system_prompt"] = "Some new prompt"
         yield "step"
 
-    orch: Orchestrator = Orchestrator(dummy_request, [(step, "")])
+    orch: Orchestrator = Orchestrator(
+        dummy_request, [(step, "")], use_clean_history=True
+    )
     events: List[str] = [e async for e in orch.execute()]
 
     end_event = next(e for e in events if "stream_end" in e)
@@ -251,7 +257,7 @@ async def test_follow_up_preserves_system_message(
         context["system_prompt"] = "Should be ignored"
         yield "step"
 
-    orch: Orchestrator = Orchestrator(request, [(step, "")])
+    orch: Orchestrator = Orchestrator(request, [(step, "")], use_clean_history=True)
     events: List[str] = [e async for e in orch.execute()]
 
     end_event = next(e for e in events if "stream_end" in e)

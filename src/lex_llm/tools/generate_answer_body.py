@@ -1,9 +1,6 @@
-"""Answer body generation step.
+"""Answer body generation step."""
 
-Retrieved sources are injected into the user message (not the system
-prompt) so the system prompt stays stable for KV-cache reuse.
-"""
-
+import re
 from collections.abc import AsyncGenerator, Callable
 from typing import Any
 
@@ -12,12 +9,57 @@ from ..api.connectors.openai_provider import LLMProvider
 from ..api.connectors.lex_db_connector import (
     LexArticle,
     LexChunk,
+    group_chunks_to_articles,
 )
 from ..api.event_models import ConversationMessage
 from ..prompts_search_synthesis import (
     get_insufficient_context_deferral_prompt,
 )
-from .source_formatting import build_user_message_with_sources
+
+
+def _extract_used_sources_from_system_prompt(
+    conversation_history: list[ConversationMessage],
+) -> list[dict[str, str]]:
+    """Extract used sources from the system prompt in conversation history.
+
+    Returns a list of dicts with id, title, text, and url.
+    """
+    if not conversation_history:
+        return []
+
+    system_message = None
+    for msg in conversation_history:
+        msg_dict = dict(msg) if not isinstance(msg, dict) else msg
+        if msg_dict.get("role") == "system":
+            system_message = msg_dict["content"]
+            break
+
+    if not system_message:
+        return []
+
+    artikler_match = re.search(
+        r"## Artikler\n(.+?)(?=\n## |$)", system_message, re.DOTALL
+    )
+    if not artikler_match:
+        return []
+
+    artikler_section = artikler_match.group(1)
+    article_pattern = (
+        r"Titel: (.+?)\nIndhold: (.+?)\nURL: (.+?)\nID: (.+?)(?=\n\nTitel: |$)"
+    )
+    matches = re.finditer(article_pattern, artikler_section, re.DOTALL)
+
+    used_sources = []
+    for match in matches:
+        used_sources.append(
+            {
+                "title": match.group(1).strip(),
+                "text": match.group(2).strip(),
+                "url": match.group(3).strip(),
+                "id": match.group(4).strip(),
+            }
+        )
+    return used_sources
 
 
 def generate_answer_body(
@@ -35,7 +77,6 @@ def generate_answer_body(
         - answer_body: str — the generated answer body text
         - final_response: str — set only if insufficient context (deferral)
         - _workflow_done: set to True if insufficient context
-        - system_prompt: str — the base system prompt (first turn only)
     """
 
     async def _generate_answer_body(
@@ -80,28 +121,61 @@ def generate_answer_body(
             context["_workflow_done"] = True
             return
 
-        # --- Build user message with sources ---
-        user_message_with_sources = build_user_message_with_sources(
-            user_input=user_input,
-            retrieved_chunks=retrieved_chunks,
+        # --- Build dynamic system prompt with sources ---
+        dynamic_system_prompt = system_prompt
+
+        # Extract previously used sources from conversation history
+        previous_used_sources = _extract_used_sources_from_system_prompt(
+            conversation_history
         )
 
-        # --- Build messages: stable system prompt + history + user with sources ---
-        messages: list[ConversationMessage] = [
-            ConversationMessage(role="system", content=system_prompt),
-        ]
-        for msg in conversation_history:
-            msg_dict = dict(msg) if not isinstance(msg, dict) else msg
-            if msg_dict.get("role") in ("user", "assistant"):
-                messages.append(
-                    ConversationMessage(
-                        role=msg_dict["role"],  # type: ignore
-                        content=msg_dict["content"],
-                    )
-                )
-        messages.append(
-            ConversationMessage(role="user", content=user_message_with_sources)
+        # Add "Artikler" section for previously used sources
+        if previous_used_sources:
+            artikler_text = "\n\n".join(
+                [
+                    f"Titel: {src['title']}\nIndhold: {src['text']}\nURL: {src['url']}\nID: {src['id']}"
+                    for src in previous_used_sources
+                ]
+            )
+            dynamic_system_prompt += f"\n\n# Artikler\n{artikler_text}"
+
+        # Add "Potentielle kilder" section with new retrieved chunks
+        # Sort chunks by (article_id, chunk_seq) to maximize KV cache hits
+        sorted_chunks = sorted(
+            retrieved_chunks, key=lambda c: (c.article_id, c.chunk_seq)
         )
+        # Group sorted chunks into articles for the prompt
+        sorted_articles = group_chunks_to_articles(sorted_chunks)
+        potentielle_text = "\n\n".join(
+            [
+                f"Titel: {doc.title}\nIndhold: {doc.text}\nURL: {doc.url}\nID: {doc.id}"
+                for doc in sorted_articles
+            ]
+        )
+        dynamic_system_prompt += f"\n\n# Potentielle kilder\n{potentielle_text}"
+
+        # --- Build messages ---
+        messages: list[ConversationMessage] = []
+
+        if not conversation_history:
+            messages = [
+                ConversationMessage(role="system", content=dynamic_system_prompt),
+                ConversationMessage(role="user", content=user_input),
+            ]
+        else:
+            messages = [
+                ConversationMessage(role="system", content=dynamic_system_prompt),
+            ]
+            for msg in conversation_history:
+                msg_dict = dict(msg) if not isinstance(msg, dict) else msg
+                if msg_dict.get("role") in ("user", "assistant"):
+                    messages.append(
+                        ConversationMessage(
+                            role=msg_dict["role"],  # type: ignore
+                            content=msg_dict["content"],
+                        )
+                    )
+            messages.append(ConversationMessage(role="user", content=user_input))
 
         # --- Stream response ---
         full_response = ""
@@ -110,9 +184,5 @@ def generate_answer_body(
             yield emitter.answer_body_chunk(chunk)
 
         context["answer_body"] = full_response
-
-        # Set the base system prompt for conversation history (first turn only)
-        if not conversation_history:
-            context["system_prompt"] = system_prompt
 
     return _generate_answer_body, "Skriver brødtekst ud fra fundne kilder"

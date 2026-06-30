@@ -1,5 +1,8 @@
 {
     "python.analysis.extraPaths": [
         "./build/lex_db_api"
-    ]
+    ],
+    "chat.tools.terminal.autoApprove": {
+        "make": true
+    }
 }

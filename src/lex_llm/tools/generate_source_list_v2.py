@@ -1,4 +1,11 @@
-"""Source list generation step."""
+"""Source list generation step — v2 (clean history).
+
+Variant of ``generate_source_list`` that does not touch
+``context["system_prompt"]``. The system prompt is owned by the upstream
+generation step (e.g. ``generate_lead_and_body_v2``).
+
+Use this in workflows that opt into ``use_clean_history=True``.
+"""
 
 from collections.abc import AsyncGenerator, Callable
 from typing import Any
@@ -11,27 +18,16 @@ from ..prompts_search_synthesis import get_source_attribution_prompt
 from .llm_json import parse_json_response
 
 
-def generate_source_list(
+def generate_source_list_v2(
     llm_provider: LLMProvider,
 ) -> tuple[
     Callable[[dict[str, Any], EventEmitter], AsyncGenerator[str | None, None]], str
 ]:
-    """Creates a step that identifies which sources were used in the answer.
+    """Same contract as ``generate_source_list`` but does not write system_prompt."""
 
-    Uses LLM analysis to determine which retrieved documents were actually
-    referenced in the answer body, then emits the source list and composes
-    the final response for conversation history.
-
-    Sets context keys:
-        - used_sources: list[Dict] — the used source articles
-        - system_prompt: str — system prompt with sources for conversation history
-        - final_response: str — the complete structured answer for history
-    """
-
-    async def _generate_source_list(
+    async def _generate_source_list_v2(
         context: dict[str, Any], emitter: EventEmitter
     ) -> AsyncGenerator[str | None, None]:
-        # Skip if workflow is done
         if context.get("_workflow_done"):
             return
 
@@ -40,10 +36,8 @@ def generate_source_list(
         interpretation: str = context.get("query_interpretation", "")
         lead_paragraph: str = context.get("lead_paragraph", "")
         definitions = context.get("definitions", [])
-        system_prompt_base: str = context.get("system_prompt_base", "")
 
         if not answer_body or not retrieved_docs:
-            # No sources to attribute
             context["used_sources"] = []
             context["final_response"] = _compose_final_response(
                 interpretation=interpretation,
@@ -53,7 +47,6 @@ def generate_source_list(
             )
             return
 
-        # Format source descriptions for the LLM
         source_descriptions = "\n".join(
             [
                 f"ID: {doc.id} | Titel: {doc.title} | Indhold: {doc.text}"
@@ -82,10 +75,8 @@ def generate_source_list(
         except ValueError:
             used_ids = []
 
-        # Filter retrieved docs by matched IDs
         used_docs = [doc for doc in retrieved_docs if str(doc.id) in used_ids]
 
-        # Store used sources as dicts for conversation history
         used_sources_data = [
             {
                 "id": str(doc.id),
@@ -97,20 +88,6 @@ def generate_source_list(
         ]
         context["used_sources"] = used_sources_data
 
-        # Build system prompt with sources for conversation history
-        system_prompt_with_sources = system_prompt_base
-        if used_sources_data:
-            artikler_text = "\n\n".join(
-                [
-                    f"Titel: {src['title']}\nIndhold: {src['text']}\nURL: {src['url']}\nID: {src['id']}"
-                    for src in used_sources_data
-                ]
-            )
-            system_prompt_with_sources += f"\n\n## Artikler\n{artikler_text}"
-
-        context["system_prompt"] = system_prompt_with_sources
-
-        # Emit sources
         yield emitter.sources(
             [
                 Source(id=doc.id, title=doc.title, url=doc.url, highlight=doc.highlight)
@@ -118,7 +95,6 @@ def generate_source_list(
             ]
         )
 
-        # Compose final response for conversation history
         context["final_response"] = _compose_final_response(
             interpretation=interpretation,
             lead_paragraph=lead_paragraph,
@@ -126,7 +102,7 @@ def generate_source_list(
             definitions=definitions,
         )
 
-    return _generate_source_list, "Skriver kildeliste"
+    return _generate_source_list_v2, "Skriver kildeliste"
 
 
 def _compose_final_response(
@@ -137,8 +113,8 @@ def _compose_final_response(
 ) -> str:
     """Compose the final structured response for conversation history.
 
-    This is stored as the assistant message in the conversation history
-    so that follow-up queries can reference all sections.
+    (Duplicated from ``generate_source_list._compose_final_response`` to
+    keep this module self-contained; the original is unchanged.)
     """
     sections = []
 
