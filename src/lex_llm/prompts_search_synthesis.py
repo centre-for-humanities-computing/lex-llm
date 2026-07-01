@@ -115,7 +115,7 @@ Returner KUN et JSON-objekt med følgende felter:
 - "in_scope": true eller false
 - "reason": (Kun hvis in_scope er false) En kort forklaring af hvorfor spørgsmålet er uden for scope
 - "keywords": (Kun hvis in_scope er true) En liste af nøgleordssøgninger udledt fra forespørgslen, som kan bruges til at finde relevante artikler i en encyklopædi
-- "subqueries": (Kun hvis in_scope er true) Omformulér forespørgslen til et eller flere underspørgsmål, der tilsammen besvarer brugerens originale forespørgsel.
+- "subqueries": (Kun hvis in_scope er true) Omformulér forespørgslen til et eller flere underspørgsmål (maks 3 og helst så få som muligt) baseret på brugerens originale forespørgsel.
 
 Eksempel på output:
 {{"interpretation": "Brugeren ønsker en forklaring af renæssancens oprindelse i Italien", "in_scope": true, "reason": "Forespørgslen vedrører en historisk periode, som er inden for encyklopædiens domæne", "keywords": ["renæssance oprindelse Italien", "Firenze renæssance", "Italien historie renæssance"], "subqueries": ["Hvad var renæssancen?", "Hvor og hvordan opstod renæssancen?"]}}
