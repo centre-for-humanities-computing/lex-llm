@@ -39,10 +39,12 @@ class Orchestrator:
         steps: list[tuple[StepFunc | ParallelStep, str]],
         context: dict[str, Any] = {},
         workflow_id: str = "",
+        use_clean_history: bool = False,
     ):
         self.request = request
         self.steps = steps
         self.workflow_id = workflow_id
+        self.use_clean_history = use_clean_history
         self.emitter = EventEmitter(conversation_id=request.conversation_id)
         # A simple dictionary to pass state between steps
         self.context: dict[str, Any] = {**context, **request.model_dump()}
@@ -218,15 +220,43 @@ class Orchestrator:
 
         # After all steps, construct the final history and end the stream
         final_assistant_message = self.context.get("final_response", "")
+
+        if self.use_clean_history:
+            yield self._build_clean_history(final_assistant_message)
+        else:
+            yield self._build_legacy_history(final_assistant_message)
+
+    def _build_clean_history(self, final_assistant_message: str) -> str:
+        """New scheme: clean user message, static system prompt, no source rewriting."""
+        user_message = self.request.user_input
+        system_prompt = self.context.get("system_prompt", "")
+
+        new_turn = [
+            ConversationMessage(role="user", content=user_message),
+            ConversationMessage(role="assistant", content=final_assistant_message),
+        ]
+
+        if not self.request.conversation_history:
+            updated_history: list[ConversationMessage] = []
+            if system_prompt:
+                updated_history.append(
+                    ConversationMessage(role="system", content=system_prompt)
+                )
+            updated_history += new_turn
+        else:
+            updated_history = list(self.request.conversation_history) + new_turn
+
+        return self.emitter.stream_end(conversation_history=updated_history)
+
+    def _build_legacy_history(self, final_assistant_message: str) -> str:
+        """Original scheme: sources in system prompt, cumulative dedup, rewrite on follow-up."""
         user_message = self.context.get(
             "user_message_with_sources", self.request.user_input
         )
         system_prompt_with_sources = self.context.get("system_prompt", "")
 
-        # Build the new history
         new_history = []
         if system_prompt_with_sources and not self.request.conversation_history:
-            # First message: include system prompt with used sources
             new_history.append(
                 ConversationMessage(role="system", content=system_prompt_with_sources)
             )
@@ -236,22 +266,18 @@ class Orchestrator:
             ConversationMessage(role="assistant", content=final_assistant_message),
         ]
 
-        # For follow-up messages, update the system prompt in history
         if self.request.conversation_history and system_prompt_with_sources:
-            # Replace old system message with updated one containing all used sources
             updated_history = [
                 ConversationMessage(role="system", content=system_prompt_with_sources)
             ]
-            # Add all user/assistant pairs from previous history
             for msg in self.request.conversation_history:
                 if msg.role in ["user", "assistant"]:
                     updated_history.append(msg)
-            # Add new user/assistant pair
             updated_history += new_history
         else:
             updated_history = self.request.conversation_history + new_history
 
-        yield self.emitter.stream_end(conversation_history=updated_history)
+        return self.emitter.stream_end(conversation_history=updated_history)
 
     def _emit_workflow_metrics(
         self, t_start: float, step_count: int, outcome: str
