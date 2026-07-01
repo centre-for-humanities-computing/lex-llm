@@ -1,193 +1,192 @@
 # Lex LLM
-The orchestrator for the Lex LLM project, enabling intelligent workflow execution and AI-driven responses.
+
+Orchestrator for the Lex project — runs AI workflows that search an encyclopedia
+knowledge base and generate cited, editorial-quality answers in Danish.
 
 ## Repositories
-This project is part of the broader Lex ecosystem, which includes several interconnected repositories:
 
 | Name      | Description                 |
-|---------|-----------------------------|
+|-----------|-----------------------------|
 | [lex-llm] | Core Python orchestration logic and API |
-| [lex-ui]  | Frontend interface for Lex users |
 | [lex-db]  | Database backend with document storage and search |
 
 [lex-llm]: https://github.com/centre-for-humanities-computing/lex-llm  
-[lex-ui]: https://github.com/centre-for-humanities-computing/lex-llm-ui  
 [lex-db]: https://github.com/centre-for-humanities-computing/lex-db
 
 ---
 
-## API Structure
-The main API is defined in [`src/lex_llm/api/routes.py`](src/lex_llm/api/routes.py). The available endpoints are:
-
-- **POST `/workflows/{workflow_id}/run`**  
-  Executes a specific workflow by ID. Accepts a JSON payload containing user input, conversation history, and conversation ID. Returns a streaming response in NDJSON format.
-
-- **GET `/workflows/metadata`**  
-  Retrieves metadata for all available workflows. Useful for discovering what workflows are supported by the system.
-
-- **GET `/workflows/{workflow_id}/metadata`**  
-  Retrieves metadata for a specific workflow by ID. Returns 404 if the workflow does not exist, along with a list of available workflows.
-
-- **GET `/health`**  
-  Simple health check endpoint. Returns `{"status": "healthy"}` when the service is running.
-
-- **Lifespan Events**  
-  On startup and shutdown, logs are printed to indicate the state of the AI Orchestration Service.
-
-### Example: Calling the Workflow API
-Use `curl` to stream results from a running workflow:
+## Quick Start
 
 ```bash
-curl -N -X POST "http://0.0.0.0:10000/workflows/test_workflow/run" \
+# 1. Clone and set up environment variables
+cp .env.example .env
+# Edit .env — add your API keys and set DB_HOST
+
+# 2. Install dependencies (uses uv)
+make install
+
+# 3. Run the server
+make run        # production (port 8001)
+make run-dev    # development with hot reload (port 10000)
+```
+
+The project uses **[uv](https://docs.astral.sh/uv/)** for dependency management.
+All commands go through the `Makefile` — run `make help` to see everything.
+
+---
+
+## Architecture
+
+```
+main.py                          FastAPI entry point
+└── lex_llm/api/routes.py        REST endpoints + lifespan
+    ├── orchestrator.py          Step execution engine (sequential + parallel)
+    ├── event_emitter.py         NDJSON streaming to clients
+    ├── workflow_utils.py        Dynamic workflow module loader
+    └── connectors/              LLM provider abstraction
+        ├── llm_provider.py          Base interface
+        ├── routing_llm_provider.py  Primary/fallback with load probing
+        ├── dgx_provider.py          Self-hosted inference (DGX Spark)
+        ├── scaleway_provider.py     Scaleway Generative APIs
+        ├── openai_provider.py       OpenAI
+        ├── openrouter_provider.py   OpenRouter
+        └── cortecs_provider.py      Cortecs
+
+lex_llm/workflows/               One file per workflow variant
+lex_llm/tools/                   Reusable step functions (search, generation, etc.)
+lex_llm/utils/                   Helpers (RRF fusion, retrieval utilities)
+lex_llm/prompts_search_synthesis.py   Danish prompt templates for the search pipeline
+```
+
+### Workflow plugin system
+
+Workflows are discovered automatically. Drop a `.py` file in
+`src/lex_llm/workflows/` that exposes two functions, and it becomes callable
+via the API with no registration needed:
+
+```python
+# my_workflow.py
+def get_workflow(request: WorkflowRunRequest) -> Orchestrator:
+    ...
+
+def get_metadata() -> dict:
+    return {"id": "my_workflow", "name": "...", "description": "..."}
+```
+
+The API reads the filesystem at startup — `POST /workflows/my_workflow/run`
+just works. See existing workflows in `src/lex_llm/workflows/` for examples.
+
+### LLM providers
+
+All LLM calls go through a common `LLMProvider` interface. The
+`RoutingLLMProvider` adds automatic primary/fallback routing: it probes the
+local inference server's `/metrics` endpoint and falls back to a cloud provider
+if the local backend is overloaded or unreachable.
+
+---
+
+## API Endpoints
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/workflows/{workflow_id}/run` | Run a workflow. Returns NDJSON stream. |
+| `GET`  | `/workflows/metadata` | List all available workflows and their metadata. |
+| `GET`  | `/workflows/{workflow_id}/metadata` | Metadata for a single workflow. |
+| `GET`  | `/health` | Health check. |
+
+### Example request
+
+```bash
+curl -N -X POST "http://0.0.0.0:8001/workflows/test_workflow/run" \
   -H "Content-Type: application/json" \
   -d '{
-    "user_input": "Tell me about artificial intelligence.",
+    "user_input": "Hvad er Rundetårn?",
     "conversation_history": [
-      {"role": "user", "content": "Hi!"},
-      {"role": "assistant", "content": "Hello, how can I help you?"}
+      {"role": "user", "content": "Hej!"},
+      {"role": "assistant", "content": "Hej, hvordan kan jeg hjælpe?"}
     ],
     "conversation_id": "123e4567-e89b-12d3-a456-426614174000"
   }'
 ```
 
-> 💡 Note: The `-N` flag disables buffering to ensure streaming works properly.
+> Use port `10000` for `make run-dev`. The `-N` flag disables buffering so
+> streaming works correctly.
 
 ---
 
-## Running the API
-This project uses a `Makefile` to simplify common development and deployment tasks.
+## Makefile Reference
 
-### Key Commands
-- **Run the production API:**  
-  ```bash
-  make run
-  ```
-  Generates the OpenAPI schema and starts the application server.
+| Command | Description |
+|---------|-------------|
+| `make install` | Install dependencies + generate LexDB API client |
+| `make install-dev` | Install with dev dependencies |
+| `make run` | Start production server (port 8001) |
+| `make run-dev` | Start with hot reload (port 10000) |
+| `make lint` | Format and fix with ruff |
+| `make lint-check` | Check formatting without fixing |
+| `make static-type-check` | Run mypy |
+| `make test` | Run pytest |
+| `make pr` | Full PR checklist (install, lint, type-check, test, schema) |
+| `make generate-api` | Regenerate LexDB client from `openapi/lex-db.yaml` |
+| `make generate-openapi-schema` | Write OpenAPI schema to `openapi/openapi.yaml` |
 
-- **Run in development mode (with hot reload):**  
-  ```bash
-  make run-dev
-  ```
-  Installs dev dependencies, generates the schema, and starts Uvicorn with auto-reload enabled on port `10000`.
-
-- **Other Useful Commands:**
-  | Command | Description |
-  |--------|-------------|
-  | `make install` | Install project and API client dependencies |
-  | `make install-dev` | Install development dependencies |
-  | `make lint` | Format and fix code using `ruff` |
-  | `make lint-check` | Check formatting and linting without fixing |
-  | `make static-type-check` | Run `mypy` for type checking |
-  | `make test` | Run unit tests with `pytest` |
-  | `make pr` | Run all checks required for a pull request |
-  | `make generate-api` | Generate OpenAPI client from `lex-db.yaml` |
-  | `make generate-openapi-schema` | Generate OpenAPI schema (`openapi/openapi.yaml`) |
-
-> 📌 Tip: Always run `make pr` before pushing changes to ensure everything is consistent.
+Always run `make pr` before pushing.
 
 ---
 
-## Communication with LexDB
-This project integrates with **LexDB** via an auto-generated OpenAPI client, enabling robust interaction with the database.
+## LexDB Integration
 
-### For Developers
-- The OpenAPI client is generated using `make generate-api`, which uses Docker and OpenAPI Generator.
-- Generated client is located at `build/lex_db_api`.
-- Supported operations include:
-  - Listing available tables
-  - Full-text search across articles
-  - Vector-based semantic search using embeddings
-- Example usage can be found in `src/examples/lex_db_search_example.py`.
+The project talks to [LexDB](https://github.com/centre-for-humanities-computing/lex-db)
+through an auto-generated OpenAPI client at `build/lex_db_api/`. The client is
+regenerated with `make generate-api` (requires Docker).
 
-#### Example Usage
-```python
-from lex_db_api.configuration import Configuration
-from lex_db_api.api.lex_db_api import LexDbApi
-from lex_db_api.models.vector_search_request import VectorSearchRequest
-from lex_db_api.api_client import ApiClient
-import os
+The high-level connector in `src/lex_llm/api/connectors/lex_db_connector.py`
+wraps the generated client with typed models (`LexChunk`, `LexArticle`) and
+helper functions (chunk grouping, RRF fusion). Workflow tools use this
+connector — you rarely need the raw generated client directly.
 
-api_host = os.getenv("DB_HOST", "http://0.0.0.0:8000")
-api_client = ApiClient(configuration=Configuration(host=api_host))
-api = LexDbApi(api_client=api_client)
-
-# Get available tables
-tables = api.get_tables()
-print("Tables:", tables)
-
-# Full-text search
-results_fts = api.get_articles(query="Rundetårn", limit=2)
-print("Full-text results:", results_fts)
-
-# Vector search
-req_vector = VectorSearchRequest(
-    query_text="Hvad er Rundetårn?",
-    top_k=3,
-)
-results_vector = api.vector_search("openai_large_3_sections", req_vector)
-print("Vector search results:", results_vector)
-
-# Fetch full articles from result IDs
-if results_vector.results:
-    article_ids = {int(result["source_article_id"]) for result in results_vector.results}
-    full_articles = api.get_articles(ids=str(list(article_ids)))
-    for article in full_articles:
-        print(article)
-```
-
-### For Users
-The LexDB integration enables:
-- Fast full-text search across all documents
-- Semantic search using vector embeddings
-- Access to structured metadata and article content
-
-All database interactions are handled automatically by the application, so no manual setup is required for end users.
+For a standalone usage example, see
+[`src/examples/lex_db_search_example.py`](src/examples/lex_db_search_example.py).
 
 ---
 
 ## Observability
 
-Each workflow run streams a structured NDJSON event sequence.  The observability
-extensions add per-request timing, per-step backend routing information, and a
-persistent JSONL log for offline analysis.
+Each workflow run produces a structured NDJSON event stream. The observability
+layer adds per-request timing, per-step LLM routing decisions, and a persistent
+JSONL log for offline analysis. See the source in
+`src/lex_llm/api/observability/`.
 
-### Events added / extended
+### Events
 
-| Event | When | Data |
-|-------|------|------|
-| `workflow_step` ("completed") | After each step | `output.duration_ms` + `output.llm_calls[*]` per LLM call in the step |
-| `workflow_step` ("failed") | If a step raises | `output.duration_ms` + `error` |
-| `workflow_metrics` | Immediately before `stream_end` | `workflow_id`, `e2e_ms`, `ttft_any_ms`, `ttft_answer_ms`, `backend_summary`, `step_count`, `outcome` |
+| Event | When | Key fields |
+|-------|------|------------|
+| `workflow_step` (completed) | After each step | `output.duration_ms`, `output.llm_calls[*]` |
+| `workflow_step` (failed) | If a step raises | `output.duration_ms`, `error` |
+| `workflow_metrics` | Before `stream_end` | `e2e_ms`, `ttft_any_ms`, `ttft_answer_ms`, `backend_summary`, `step_count`, `outcome` |
 
 ### TTFT semantics
 
-- `ttft_any_ms` — monotonic time from `execute()` entry to the first chunk-like
-  event (`text_chunk`, `lead_paragraph`, `answer_body`, `interpretation`).
-- `ttft_answer_ms` — time to the first answer-body event (`text_chunk` or
-  `answer_body`).  Always ≤ `ttft_any_ms` because any chunk is counted as
-  "any".
+- **`ttft_any_ms`** — time from workflow start to the first chunk-like event
+  (`text_chunk`, `lead_paragraph`, `answer_body`, `interpretation`).
+- **`ttft_answer_ms`** — time to the first answer-body event. Always >= `ttft_any_ms`.
 
 ### Routing telemetry
 
-Each `LLMProvider` that supports routing (`RoutingLLMProvider`) exposes an
-`observe()` context manager.  Steps that wrap their LLM call in
-`async with llm_provider.observe(callback):` capture a `RouteDecision` with:
+When a step uses `RoutingLLMProvider`, each LLM call records a route decision:
 
 | Field | Values |
 |-------|--------|
 | `backend` | `"primary"` or `"fallback"` |
 | `trigger` | `"ok"`, `"probe_overload"`, `"probe_scrape_error"`, `"primary_pre_first_token_error"` |
-| `reason` | Human-readable explanation (queue depth, exception text, etc.) |
+| `reason` | Human-readable explanation |
 | `model` | Model name on the selected backend |
-
-These decisions appear as `output.llm_calls[*]` in the `workflow_step`
-"completed" event.
 
 ### JSONL recorder
 
-A bounded async queue writes one JSON line per request to
-`LEX_LLM_TELEMETRY_DIR` (default `./telemetry/`), daily-rotated.  Each row
-includes:
+Writes one JSON line per request to `LEX_LLM_TELEMETRY_DIR` (default
+`./telemetry/`), daily-rotated. Non-blocking — drops rows with a warning if the
+internal queue exceeds 10 000 items.
 
 ```json
 {
@@ -204,14 +203,10 @@ includes:
 }
 ```
 
-The recorder is lossless under normal load and drops rows (with a log warning)
-if the internal queue exceeds 10 000 pending items, so it never back-pressures
-the request path.
-
-### Trace propagation to the inference server
+### Trace propagation
 
 `DGXProvider` sends the orchestrator's `run_id` as the `X-Lex-Run-Id` HTTP
-header on every request to the DGX Spark.  Configure nginx to log it with:
+header. Configure nginx to log it:
 
 ```
 log_format lex '$remote_addr - $remote_user [$time_local] '
@@ -219,4 +214,4 @@ log_format lex '$remote_addr - $remote_user [$time_local] '
                '"$http_x_lex_run_id"';
 ```
 
-This lets you join nginx access logs with the JSONL rows by `run_id`.
+Join nginx access logs with JSONL rows by `run_id`.
