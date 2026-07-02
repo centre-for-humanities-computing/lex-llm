@@ -25,6 +25,7 @@ def get_workflow(request: WorkflowRunRequest) -> Orchestrator:
                 top_k_semantic=100,
                 top_k_fts=100,
                 rrf_k=60,
+                output_sources=True,
             ),
         ],
         context={"conversation_history": request.conversation_history},

@@ -1,7 +1,12 @@
-"""Response generation with source attribution — v2 (clean history).
+"""Response generation with inline citations — v3 (clean history).
 
-Variant of ``generate_response_with_sources`` that injects retrieved
-sources into the user message instead of rewriting the system prompt.
+Variant of ``generate_response_with_sources_v2`` that replaces the explicit
+source-attribution LLM call with inline ``[^ID]`` citation markers. Sources
+are extracted from the generated text via regex post-processing — no second
+LLM call required.
+
+Citation markers are stripped during streaming so the client never sees
+them. The raw (unstripped) text is held in memory for source extraction.
 
 Use this in workflows that opt into ``use_clean_history=True``.
 """
@@ -12,26 +17,26 @@ from ..api.event_emitter import EventEmitter
 from ..api.event_models import Source, ConversationMessage
 from ..api.connectors.lex_db_connector import LexArticle
 from ..api.connectors.openai_provider import LLMProvider
-from .extract_used_sources_via_llm import extract_used_sources_via_llm
 from .source_formatting import build_user_message_with_sources
+from .citation_extraction import extract_cited_sources, CitationStripper
 
 
-def generate_response_with_sources_v2(
+def generate_response_with_sources_v3(
     llm_provider: LLMProvider,
     system_prompt: str,
     deferral_message: str,
     *,
     current_date: str | None = None,
 ) -> tuple[Callable[[dict[str, Any], EventEmitter], AsyncGenerator[str, None]], str]:
-    """Same contract as ``generate_response_with_sources`` but with clean-history semantics.
+    """Same contract as ``generate_response_with_sources_v2`` but uses inline
+    ``[^ID]`` citation markers instead of a separate attribution LLM call.
 
-    Sources are appended to the user message under a ``# Kilder`` heading.
-    The current date is prepended under ``# Aktuel dato``.
-    The system prompt is sent verbatim. On the first turn,
-    ``context["system_prompt"]`` is set to the base prompt.
+    After streaming the response, citation markers are extracted via regex
+    and mapped to ``LexArticle`` objects for the ``sources`` event and
+    ``used_sources`` context key.
     """
 
-    async def generate_response_with_sources_v2(
+    async def _generate_response_with_sources_v3(
         context: dict[str, Any], emitter: EventEmitter
     ) -> AsyncGenerator[str, None]:
         retrieved_docs: list[LexArticle] = context.get("retrieved_docs", [])
@@ -80,42 +85,58 @@ def generate_response_with_sources_v2(
             for m in messages
         ]
 
+        # --- Stream response with citation stripping ---
+        raw_response = ""
+        clean_response = ""
+        stripper = CitationStripper()
+
         telemetry = context.get("_current_step_telemetry", {})
 
-        full_response = ""
         async with llm_provider.observe(telemetry=telemetry):
             async for chunk in llm_provider.generate_stream(messages_for_llm):  # type: ignore
-                full_response += chunk
-                yield emitter.text_chunk(chunk)
-        context["final_response"] = full_response
+                raw_response += chunk
+                clean = stripper.feed(chunk)
+                if clean:
+                    yield emitter.text_chunk(clean)
+                    clean_response += clean
+
+        # Flush any remaining buffered text
+        tail = stripper.flush()
+        if tail:
+            yield emitter.text_chunk(tail)
+            clean_response += tail
+
+        # final_response = clean (client-facing / conversation history)
+        context["final_response"] = clean_response
 
         # Set the base system prompt for conversation history (first turn only)
         if not conversation_history:
             context["system_prompt"] = system_prompt
 
-        # Extract which sources were actually used
+        # Extract cited sources from raw (unstripped) response
         yield emitter.tool_call(
-            name="source_attribution",
+            name="citation_extraction",
             input_data={
                 "num_sources": len(retrieved_docs),
                 "source_ids": [doc.id for doc in retrieved_docs],
+                "method": "regex [^ID]",
             },
-            description="Analyserer hvilke kilder der blev brugt i svaret...",
+            description="Udtrækker [^ID]-citationer fra svaret...",
         )
 
-        async with llm_provider.observe(telemetry=telemetry):
-            newly_used_sources = await extract_used_sources_via_llm(
-                response=full_response,
-                retrieved_docs=retrieved_docs,
-                llm_provider=llm_provider,
-            )
+        newly_used_sources = extract_cited_sources(
+            response=raw_response,
+            retrieved_docs=retrieved_docs,
+        )
 
         yield emitter.tool_result(
-            name="source_attribution",
+            name="citation_extraction",
             result_data={
                 "used_ids": [doc.id for doc in newly_used_sources],
                 "num_used": len(newly_used_sources),
                 "total_retrieved": len(retrieved_docs),
+                "fallback_used": "[^"
+                not in raw_response,  # True if no markers were found
             },
         )
 
@@ -142,4 +163,4 @@ def generate_response_with_sources_v2(
             ]
         )
 
-    return generate_response_with_sources_v2, "Skriver svar ud fra fundne kilder"
+    return _generate_response_with_sources_v3, "Skriver svar ud fra fundne kilder"

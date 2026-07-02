@@ -1,37 +1,41 @@
-"""Source list generation step — v2 (clean history).
+"""Source list generation step — v3 (inline citations, clean history).
 
-Variant of ``generate_source_list`` that does not touch
-``context["system_prompt"]``. The system prompt is owned by the upstream
-generation step (e.g. ``generate_lead_and_body_v2``).
+Variant of ``generate_source_list_v2`` that replaces the explicit
+source-attribution LLM call with regex extraction of ``[^ID]``
+citation markers from the answer body. No second LLM call is needed.
 
-Use this in workflows that opt into ``use_clean_history=True``.
+Use this in editorial workflows that opt into ``use_clean_history=True``.
 """
 
 from collections.abc import AsyncGenerator, Callable
 from typing import Any
 
 from ..api.event_emitter import EventEmitter
-from ..api.connectors.openai_provider import LLMProvider
 from ..api.connectors.lex_db_connector import LexArticle
-from ..api.event_models import ConversationMessage, Source
-from ..prompts_search_synthesis import get_source_attribution_prompt
-from .llm_json import parse_json_response
+from ..api.event_models import Source
+from .citation_extraction import extract_cited_sources
 
 
-def generate_source_list_v2(
-    llm_provider: LLMProvider,
-) -> tuple[
+def generate_source_list_v3() -> tuple[
     Callable[[dict[str, Any], EventEmitter], AsyncGenerator[str | None, None]], str
 ]:
-    """Same contract as ``generate_source_list`` but does not write system_prompt."""
+    """Same contract as ``generate_source_list_v2`` but uses inline ``[^ID]``
+    citation markers extracted via regex instead of an attribution LLM call.
 
-    async def _generate_source_list_v2(
+    The ``llm_provider`` parameter is accepted for interface compatibility
+    but is **not used** (no LLM call is made).
+    """
+
+    async def _generate_source_list_v3(
         context: dict[str, Any], emitter: EventEmitter
     ) -> AsyncGenerator[str | None, None]:
         if context.get("_workflow_done"):
             return
 
         answer_body: str = context.get("answer_body", "")
+        # Prefer raw body (with [^ID] markers) for citation extraction;
+        # fall back to clean answer_body if no raw body was stored.
+        raw_answer_body: str = context.get("_raw_answer_body", answer_body)
         retrieved_docs: list[LexArticle] = context.get("retrieved_docs", [])
         interpretation: str = context.get("query_interpretation", "")
         lead_paragraph: str = context.get("lead_paragraph", "")
@@ -47,51 +51,30 @@ def generate_source_list_v2(
             )
             return
 
-        source_descriptions = "\n".join(
-            [
-                f"ID: {doc.id} | Titel: {doc.title} | Indhold: {doc.text}"
-                for doc in retrieved_docs
-            ]
-        )
-
-        messages = get_source_attribution_prompt(
-            response=answer_body,
-            retrieved_docs_summary=source_descriptions,
-        )
-
-        llm_messages = [
-            ConversationMessage(role=m["role"], content=m["content"])  # type: ignore
-            for m in messages
-        ]
-
-        telemetry = context.get("_current_step_telemetry", {})
-
         yield emitter.tool_call(
-            name="source_attribution",
+            name="citation_extraction",
             input_data={
                 "num_sources": len(retrieved_docs),
                 "source_ids": [doc.id for doc in retrieved_docs],
+                "method": "regex [^ID]",
             },
-            description="Analyserer hvilke kilder der blev brugt i svaret...",
+            description="Udtrækker [^ID]-citationer fra svaret...",
         )
 
-        async with llm_provider.observe(telemetry=telemetry):
-            raw_response = await llm_provider.generate(llm_messages)
-
-        try:
-            result = parse_json_response(raw_response)
-            used_ids = [str(sid) for sid in result.get("source_ids", [])]
-        except ValueError:
-            used_ids = []
-
-        used_docs = [doc for doc in retrieved_docs if str(doc.id) in used_ids]
+        # Extract cited sources from inline [^ID] markers (no LLM call)
+        used_docs = extract_cited_sources(
+            response=raw_answer_body,
+            retrieved_docs=retrieved_docs,
+        )
 
         yield emitter.tool_result(
-            name="source_attribution",
+            name="citation_extraction",
             result_data={
-                "used_ids": used_ids,
-                "num_used": len(used_ids),
+                "used_ids": [doc.id for doc in used_docs],
+                "num_used": len(used_docs),
                 "total_retrieved": len(retrieved_docs),
+                "fallback_used": "[^"
+                not in raw_answer_body,  # True if no markers were found
             },
         )
 
@@ -120,7 +103,7 @@ def generate_source_list_v2(
             definitions=definitions,
         )
 
-    return _generate_source_list_v2, "Skriver kildeliste"
+    return _generate_source_list_v3, "Skriver kildeliste"
 
 
 def _compose_final_response(
@@ -131,8 +114,9 @@ def _compose_final_response(
 ) -> str:
     """Compose the final structured response for conversation history.
 
-    (Duplicated from ``generate_source_list._compose_final_response`` to
-    keep this module self-contained; the original is unchanged.)
+    (Duplicated from ``generate_source_list._compose_final_response`` and
+    ``generate_source_list_v2._compose_final_response`` to keep this module
+    self-contained; the originals are unchanged.)
     """
     sections = []
 

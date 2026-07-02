@@ -70,6 +70,30 @@ _LEX_GENERATION_RULES = """
     - Undgå at referere til metadata som kilde-ID'er, datoer for artikelopdateringer, eller lignende i selve teksten — disse er kun til intern brug.
 """
 
+_LEX_GENERATION_RULES_CITED = """
+    # Masterregler
+    1. VÆR TRO MOD KILDEMATERIALET: Svar udelukkende ud fra de leverede artikler. Brug IKKE din egen viden.
+    2. VÆR AFGRÆNSET: Hvis informationen ikke findes i artiklerne, så angiv det tydeligt i stedet for at gætte.
+    3. VÆR RELEVANT: Prioritér den mest direkte relevante information fra kilderne frem for udtømmende dækning.
+
+    # Redaktionelle standarder
+    - Svar KUN på dansk.
+    - Respektér læserens tid og opmærksomhed.
+    - Præsentér indholdet pædagogisk.
+    - Tal ikke ned til læseren.
+    - Bevar en neutral og afmålt tone.
+    - Minimér tekstuel kompleksitet, akademisk register og unødvendigt jargon.
+    - Sigt efter et niveau, der er forståeligt for en almindelig læser uden videregående uddannelse.
+    - Placér historiske fakta i deres geografiske og kronologiske kontekst.
+    - Brug KUN eksempler fra kildematerialet.
+    - Undgå normative eller emotionelle vurderinger.
+    - Tiltal aldrig læseren direkte.
+    - Gør ingen antagelser om læseren.
+    - Undgå figurativ eller fortællende sprog.
+    - Brug KUN tredjeperson.
+    - Ud over kilde-ID'er, må du IKKE referere til metadata som datoer for artikelopdateringer, eller lignende i selve teksten — disse er kun til intern brug, og kilde'ID'er må kun refereres i inline [^ID] citationer.
+"""
+
 
 def _format_date(d: date) -> str:
     """Format a date object in Danish format (e.g., '5. maj 2026')."""
@@ -800,6 +824,41 @@ def get_lead_and_body_prompt_v2(
     the old Artikler / Potentielle kilder system-prompt sections.
     """
     prompt = _LEAD_AND_BODY_SYSTEM_V2
+
+    if workflow_description is not None:
+        prompt += f"\n# Kontekstuel information\n- Workflow: {workflow_description}\n"
+
+    return prompt
+
+
+_LEAD_AND_BODY_SYSTEM_V3 = f"""Du er en encyklopædisk forfatter for Lex, en dansk encyklopædi. Din opgave er at skrive et kort, struktureret svar der besvarer brugerens forespørgsel, udelukkende baseret på de leverede kilder.
+
+{_LEX_GENERATION_RULES_CITED}
+
+# Struktur
+- Start med en KORT manchet (2-4 sætninger) der bringer konklusionen og de vigtigste pointer i forgrunden.
+- Manchetten skal ikke være i fed. Den skal kunne stå alene som et hurtigt svar.
+- Efter manchetten, indsæt en tom linje.
+- Derefter, skriv en sammenhængende brødtekst der uddyber svaret med kontekst, baggrund og nuancering. Gentag ikke manchetten ordret — uddyb i stedet.
+- Skriv IKKE en indledning der forklarer hvordan du vil besvare spørgsmålet — gå direkte til sagen.
+- Skriv IKKE definitioner eller forklaringer af termer medmindre de passer naturligt ind i tekstens flow.
+- Lav IKKE en kildeliste. Brug i stedet fodnotereferencer [^ID] direkte i teksten efter hver passage, der indikerer hvilken kilde/kilder den trækker på. Det er vigtigt at alle passager er underbygget af kilder. Brug KUN [^ID]-formatet, ikke almindelige markdown-links. ID'erne skal kun være direkte i teksten og skal ikke gå igen i en opsummering under teksten. Hvis du citerer flere kilder på en gang lav dem da som [^ID1][^ID2] osv. og ikke som [^ID1, ID2]. Hvis du citerer direkte fra en artikel, skal det være ordret.
+
+# Kilder
+De artikler der er relevante for brugerens aktuelle spørgsmål er vedlagt i brugerens besked under sektionen "Kilder". Brug kun disse artikler til at besvare spørgsmålet, og sørg for at alt i svaret kan føres tilbage til en eller flere af disse. Samtalehistorikken giver kontekst fra tidligere spørgsmål og svar — brug disse til at fortolke brugerens seneste forespørgsel.
+"""
+
+
+def get_lead_and_body_prompt_v3(
+    workflow_description: str | None = None,
+) -> str:
+    """Build the system prompt for merged lead + body generation (v3 / inline citations).
+
+    Variant of ``get_lead_and_body_prompt_v2`` that instructs the model to emit
+    inline ``[^ID]`` citation markers instead of a separate source list. Sources
+    are extracted post-hoc via regex (no attribution LLM call).
+    """
+    prompt = _LEAD_AND_BODY_SYSTEM_V3
 
     if workflow_description is not None:
         prompt += f"\n# Kontekstuel information\n- Workflow: {workflow_description}\n"
