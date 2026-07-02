@@ -39,6 +39,7 @@ def search_with_expansion(
     top_k_semantic: int = 50,
     top_k_fts: int = 50,
     rrf_k: int = 60,
+    output_sources: bool = False,
 ) -> tuple[
     Callable[[dict[str, Any], EventEmitter], AsyncGenerator[str | None, None]], str
 ]:
@@ -153,8 +154,9 @@ def search_with_expansion(
         }
         context["search_results"] = sources
 
-        # Emit the deduplicated source list as a stream event
-        yield emitter.sources(sources)
+        if output_sources:
+            # Emit the deduplicated source list as a stream event
+            yield emitter.sources(sources)
 
     return _search_with_expansion, "Søger blandt Lex's artikler"
 

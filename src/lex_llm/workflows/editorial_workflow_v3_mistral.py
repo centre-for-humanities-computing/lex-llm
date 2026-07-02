@@ -1,14 +1,16 @@
-"""Editorial workflow v2 Mistral cloud version.
+"""Editorial workflow v3 Mistral cloud version.
 
-A further latency-optimized variant of search_synthesis_v2 that:
-- Uses a single stage hybrid search with no separate corrective retrieval stage, relying on the LLM to effectively leverage keywords + subqueries from interpretation in one pass
+Latency-optimized variant of editorial_workflow_v2_mistral that replaces
+the explicit source-attribution LLM call with inline [^ID] citation markers.
+Total LLM calls reduced from 3 to 2.
 
 Steps:
 1. interpret_and_route — Combine query interpretation + scope routing
 2. generate_deferral — Generate deferral message if out of scope
-3. hybrid_search — Single-stage hybrid search with no separate corrective retrieval stage
-4. generate_lead_and_body — Single streaming call producing bold lead + body
-5. generate_source_list — Source attribution for conversation history
+3. hybrid_search — Single-stage hybrid search
+4. generate_lead_and_body_v3 — Single streaming call producing bold lead + body
+   with [^ID] citations stripped from the client-facing stream
+5. generate_source_list_v3 — Source attribution via regex extraction of [^ID] markers
 """
 
 from lex_llm.api.connectors.cortecs_provider import CortecsProvider
@@ -19,11 +21,11 @@ from ..api.event_models import WorkflowRunRequest
 from ..tools import (
     interpret_and_route,
     generate_deferral,
-    generate_lead_and_body_v2,
-    generate_source_list_v2,
+    generate_lead_and_body_v3,
+    generate_source_list_v3,
 )
 from ..prompts_search_synthesis import (
-    get_lead_and_body_prompt_v2,
+    get_lead_and_body_prompt_v3,
     _format_date as _format_date,
 )
 from datetime import date
@@ -50,14 +52,14 @@ def get_workflow(request: WorkflowRunRequest) -> Orchestrator:
                 top_k_fts=30,
                 rrf_k=60,
             ),
-            generate_lead_and_body_v2(
+            generate_lead_and_body_v3(
                 llm_provider=_llm_large,
-                system_prompt=get_lead_and_body_prompt_v2(
+                system_prompt=get_lead_and_body_prompt_v3(
                     workflow_description=get_metadata().get("description"),
                 ),
                 current_date=_format_date(date.today()),
             ),
-            generate_source_list_v2(llm_provider=_llm_large),
+            generate_source_list_v3(),
         ],
         context={"conversation_history": request.conversation_history},
         use_clean_history=True,
@@ -66,16 +68,16 @@ def get_workflow(request: WorkflowRunRequest) -> Orchestrator:
 
 def get_metadata() -> dict:
     return {
-        "workflow_id": "editorial_workflow_v2_mistral",
-        "name": "Editorial workflow v2 Mistral cloud version",
+        "workflow_id": "editorial_workflow_v3_mistral",
+        "name": "Editorial workflow v3 Mistral cloud version",
         "status": "active",
         "description": (
             "A latency-optimized search-and-synthesis workflow that restructures "
             "answers into 4 sections: interpretation, lead paragraph, "
-            "body, and sources. Uses a two-stage fast retrieval cascade with "
-            "merged eval+expand and cumulative RRF, a single streaming LLM call "
-            "for lead+body generation, and drops the definitions step. "
-            "Routing LLM calls use Mistral models and other steps use Mistral models."
+            "body, and sources. Uses a single-stage hybrid search, a single "
+            "streaming LLM call for lead+body generation with inline [^ID] "
+            "citations, and regex-based source extraction (total 2 LLM calls). "
+            "Routing uses Mistral models."
         ),
         "steps": [
             {
@@ -97,12 +99,10 @@ def get_metadata() -> dict:
                 "outputs": ["final_response"],
             },
             {
-                "name": "Retrieval Cascade (fast)",
+                "name": "Hybrid Search",
                 "description": (
-                    "Two-stage progressive hybrid retrieval: "
-                    "(1) simple_retrieval with keywords/subqueries from interpretation, "
-                    "(2) corrective intermediate search driven by a merged eval+expand LLM call. "
-                    "Cumulative raw result lists are RRF-fused across both stages."
+                    "Single-stage hybrid search using keywords and subqueries from "
+                    "interpretation."
                 ),
                 "inputs": [
                     "user_input",
@@ -110,14 +110,15 @@ def get_metadata() -> dict:
                     "keywords",
                     "subqueries",
                 ],
-                "outputs": ["retrieved_docs", "insufficient_context"],
+                "outputs": ["retrieved_docs", "retrieved_chunks"],
             },
             {
-                "name": "Generate Lead & Body (merged)",
+                "name": "Generate Lead & Body (v3 / stripped citations)",
                 "description": (
                     "Single streaming LLM call that produces a bold Markdown lead "
-                    "paragraph followed by an elaborating answer body. Streams as "
-                    "text_chunk events."
+                    "paragraph followed by an elaborating answer body with [^ID] "
+                    "citation markers stripped during streaming for a clean "
+                    "client-facing output."
                 ),
                 "inputs": [
                     "retrieved_docs",
@@ -129,12 +130,13 @@ def get_metadata() -> dict:
                 "outputs": ["final_response", "answer_body", "lead_paragraph"],
             },
             {
-                "name": "Generate Source List",
-                "description": "Attributes which sources were used in the answer.",
+                "name": "Generate Source List (v3 / regex)",
+                "description": "Extracts cited sources from [^ID] markers in the "
+                "answer body via regex — no LLM call needed.",
                 "inputs": ["answer_body", "retrieved_docs"],
-                "outputs": ["used_sources", "system_prompt", "final_response"],
+                "outputs": ["used_sources", "final_response"],
             },
         ],
         "author": "Simon Enni",
-        "version": "2.0.0",
+        "version": "3.0.0",
     }

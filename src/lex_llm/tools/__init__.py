@@ -16,6 +16,9 @@ from .generate_source_list import generate_source_list
 from .generate_source_list_v2 import generate_source_list_v2
 from .generate_lead_and_body import generate_lead_and_body
 from .generate_lead_and_body_v2 import generate_lead_and_body_v2
+from .generate_lead_and_body_v3 import generate_lead_and_body_v3
+from .generate_response_with_sources_v3 import generate_response_with_sources_v3
+from .generate_source_list_v3 import generate_source_list_v3
 
 __all__ = [
     "search_knowledge_base",
@@ -34,4 +37,7 @@ __all__ = [
     "generate_source_list_v2",
     "generate_lead_and_body",
     "generate_lead_and_body_v2",
+    "generate_lead_and_body_v3",
+    "generate_response_with_sources_v3",
+    "generate_source_list_v3",
 ]
