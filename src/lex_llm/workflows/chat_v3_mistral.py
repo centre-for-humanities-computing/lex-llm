@@ -19,11 +19,8 @@ from ..tools import generate_response_with_sources_v3
 from ..prompts import get_deferral_message, get_system_prompt
 from ..prompts_search_synthesis import _format_date as _format_date
 
-_llm_small = CortecsProvider(
-    model="mistral-nemo-instruct-2407", preference="speed", reasoning_effort="none"
-)
 
-_llm_large = CortecsProvider(
+_llm = CortecsProvider(
     model="mistral-small-2603", preference="speed", reasoning_effort="none"
 )
 
@@ -32,8 +29,8 @@ def get_workflow(request: WorkflowRunRequest) -> Orchestrator:
     return Orchestrator(
         request=request,
         steps=[
-            interpret_and_route(llm_provider=_llm_small),
-            generate_deferral(llm_provider=_llm_small),
+            interpret_and_route(llm_provider=_llm),
+            generate_deferral(llm_provider=_llm),
             hybrid_search(
                 index_name="article_embeddings_e5",
                 top_k=20,
@@ -42,7 +39,7 @@ def get_workflow(request: WorkflowRunRequest) -> Orchestrator:
                 rrf_k=60,
             ),
             generate_response_with_sources_v3(
-                llm_provider=_llm_large,
+                llm_provider=_llm,
                 system_prompt=get_system_prompt(
                     version="v3",
                     workflow_description=get_metadata()["description"],

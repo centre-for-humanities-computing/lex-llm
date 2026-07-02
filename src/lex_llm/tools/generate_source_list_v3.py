@@ -73,7 +73,8 @@ def generate_source_list_v3() -> tuple[
                 "used_ids": [doc.id for doc in used_docs],
                 "num_used": len(used_docs),
                 "total_retrieved": len(retrieved_docs),
-                "fallback_used": "[^" not in raw_answer_body,  # True if no markers were found
+                "fallback_used": "[^"
+                not in raw_answer_body,  # True if no markers were found
             },
         )
 

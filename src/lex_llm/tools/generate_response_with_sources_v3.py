@@ -135,7 +135,8 @@ def generate_response_with_sources_v3(
                 "used_ids": [doc.id for doc in newly_used_sources],
                 "num_used": len(newly_used_sources),
                 "total_retrieved": len(retrieved_docs),
-                "fallback_used": "[^" not in raw_response,  # True if no markers were found
+                "fallback_used": "[^"
+                not in raw_response,  # True if no markers were found
             },
         )
 
