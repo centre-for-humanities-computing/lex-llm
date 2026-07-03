@@ -1,3 +1,4 @@
+import asyncio
 import httpx
 import os
 from typing_extensions import deprecated
@@ -94,7 +95,9 @@ class LexDBConnector:
 
         try:
             vec_req = VectorSearchRequest(query_text=query, top_k=top_k)
-            vector_search_result = lexdb_api.vector_search(index_name, vec_req)
+            vector_search_result = await asyncio.to_thread(
+                lexdb_api.vector_search, index_name, vec_req
+            )
             if vector_search_result.results:
                 return [
                     LexChunk(
@@ -137,7 +140,9 @@ class LexDBConnector:
                 methods=methods,
             )
 
-            hybrid_search_result = lexdb_api.hybrid_search(index_name, hybrid_req)
+            hybrid_search_result = await asyncio.to_thread(
+                lexdb_api.hybrid_search, index_name, hybrid_req
+            )
 
             if hybrid_search_result.results:
                 return [
@@ -166,7 +171,9 @@ class LexDBConnector:
 
         try:
             hyde_req = VectorSearchRequest(query_text=query, top_k=top_k)
-            hyde_search_result = lexdb_api.hyde_search(index_name, hyde_req)
+            hyde_search_result = await asyncio.to_thread(
+                lexdb_api.hyde_search, index_name, hyde_req
+            )
             if hyde_search_result.results:
                 return [
                     LexChunk(
@@ -202,7 +209,9 @@ class LexDBConnector:
             # BatchVectorSearchRequest expects queries as list of [query_text, TextType] pairs
             query_pairs: list[list[str]] = [[text, tt.value] for text, tt in queries]
             batch_req = BatchVectorSearchRequest(queries=query_pairs, top_k=top_k)
-            batch_results = lexdb_api.batch_vector_search(index_name, batch_req)
+            batch_results = await asyncio.to_thread(
+                lexdb_api.batch_vector_search, index_name, batch_req
+            )
 
             # batch_results is a list of VectorSearchResults (one per query)
             per_query_chunks: list[list[LexChunk]] = []
@@ -239,7 +248,9 @@ class LexDBConnector:
         """
         try:
             batch_req = BatchFulltextSearchRequest(queries=queries, top_k=top_k)
-            batch_results = lexdb_api.batch_fulltext_search(index_name, batch_req)
+            batch_results = await asyncio.to_thread(
+                lexdb_api.batch_fulltext_search, index_name, batch_req
+            )
 
             # batch_results is a list of lists of RetrievalResult (one inner list per query)
             per_query_chunks: list[list[LexChunk]] = []

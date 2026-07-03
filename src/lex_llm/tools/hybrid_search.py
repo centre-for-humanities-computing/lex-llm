@@ -11,6 +11,7 @@ chunk as a highlight.
 
 from collections.abc import AsyncGenerator, Callable
 from typing import Any
+import asyncio
 
 from lex_db_api.models.text_type import TextType
 
@@ -79,15 +80,17 @@ def hybrid_search(
             ),
         )
 
-        semantic_chunks = await connector.batch_vector_search(
-            queries=[(q, TextType.QUERY) for q in queries],
-            top_k=top_k_semantic,
-            index_name=index_name,
-        )
-        fts_chunks = await connector.batch_fulltext_search(
-            queries=keywords,
-            top_k=top_k_fts,
-            index_name=index_name,
+        semantic_chunks, fts_chunks = await asyncio.gather(
+            connector.batch_vector_search(
+                queries=[(q, TextType.QUERY) for q in queries],
+                top_k=top_k_semantic,
+                index_name=index_name,
+            ),
+            connector.batch_fulltext_search(
+                queries=keywords,
+                top_k=top_k_fts,
+                index_name=index_name,
+            ),
         )
         fused_chunks = reciprocal_rank_fusion(
             *semantic_chunks,
