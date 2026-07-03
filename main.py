@@ -37,10 +37,12 @@ def main() -> None:
     """Run the FastAPI application."""
     host = os.getenv("DEPLOY_DOMAIN", "0.0.0.0")
     port = int(os.getenv("DEPLOY_PORT", "8001"))
+    workers = int(os.getenv("DEPLOY_WORKERS", "1"))
     uvicorn.run(
         "main:app",
         host=host,
         port=port,
+        workers=workers,
         reload=False,
     )
 

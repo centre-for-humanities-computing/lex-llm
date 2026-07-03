@@ -93,7 +93,9 @@ class RunRecorder:
 
     def _rotate(self, today: date) -> None:
         self._close_file()
-        path = os.path.join(self._directory, f"lex-llm-{today.isoformat()}.jsonl")
+        path = os.path.join(
+            self._directory, f"lex-llm-{today.isoformat()}-{os.getpid()}.jsonl"
+        )
         self._file_handle = open(path, "a", encoding="utf-8")
         self._current_date = today
         _LOGGER.info("RunRecorder rotated to %s", path)

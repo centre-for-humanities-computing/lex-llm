@@ -1,4 +1,6 @@
 from collections.abc import AsyncGenerator
+import asyncio
+import os
 from fastapi import APIRouter, FastAPI, HTTPException
 from fastapi.responses import StreamingResponse, JSONResponse
 from contextlib import asynccontextmanager
@@ -11,6 +13,24 @@ from .workflow_utils import (
 from .observability.run_recorder import get_recorder
 
 router = APIRouter()
+
+# Per-worker concurrency guard: rejects excess requests with 429 immediately
+# rather than letting them queue and suffer long TTFT under load.
+_MAX_CONCURRENT_WORKFLOWS = int(os.getenv("MAX_CONCURRENT_WORKFLOWS", "10"))
+_workflow_semaphore = asyncio.Semaphore(_MAX_CONCURRENT_WORKFLOWS)
+
+
+async def _guarded_stream(
+    inner: AsyncGenerator[str, None],
+    semaphore: asyncio.Semaphore,
+) -> AsyncGenerator[str, None]:
+    """Yield from the inner generator, releasing the semaphore on completion
+    or client disconnect so the slot is freed for the next request."""
+    try:
+        async for chunk in inner:
+            yield chunk
+    finally:
+        semaphore.release()
 
 
 @router.post("/workflows/{workflow_id}/run")
@@ -27,10 +47,22 @@ async def run_workflow(
                 "available_workflows": available,
             },
         )
+
+    # Fast-fail: reject immediately if all workflow slots are taken.
+    # The check + acquire is safe without a lock because there is no
+    # ``await`` between them, so no other coroutine can interleave.
+    if _workflow_semaphore._value <= 0:  # noqa: SLF001
+        raise HTTPException(
+            status_code=429,
+            detail="Server is at capacity. Please try again later.",
+            headers={"Retry-After": "5"},
+        )
+    await _workflow_semaphore.acquire()
+
     orchestrator = mod.get_workflow(request)
     orchestrator.workflow_id = workflow_id
     return StreamingResponse(
-        orchestrator.execute(),
+        _guarded_stream(orchestrator.execute(), _workflow_semaphore),
         media_type="application/x-ndjson",
         headers={"Cache-Control": "no-cache"},
     )

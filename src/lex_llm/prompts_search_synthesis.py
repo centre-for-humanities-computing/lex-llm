@@ -43,8 +43,10 @@ _LEX_DOMAIN_DESCRIPTION = (
     "geografi, sprog, litteratur, kunst, musik, arkitektur, biografi "
     "og beslægtede fagområder. Lex dækker IKKE praktisk rådgivning som "
     "opskrifter, træningsregimer, dieter, juridisk rådgivning, "
-    "medicinsk rådgivning eller andre livsstilsråd."
-)
+    "medicinsk rådgivning eller andre livsstilsråd, men kan stadig give "
+    "generelle oplysninger om disse emner, så længe de ikke indebærer "
+    "praktisk rådgivning og er understøttet af leksikonnets kilder."
+    )
 
 _LEX_GENERATION_RULES = """
     # Masterregler
