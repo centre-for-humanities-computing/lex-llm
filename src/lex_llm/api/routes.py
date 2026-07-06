@@ -66,7 +66,7 @@ async def run_workflow(
             status_code=503,
             detail=f"Workflow '{workflow_id}' is currently inactive.",
         )
-    
+
     orchestrator = mod.get_workflow(request)
     orchestrator.workflow_id = workflow_id
     return StreamingResponse(
