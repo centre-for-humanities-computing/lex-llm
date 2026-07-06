@@ -59,7 +59,7 @@ def get_metadata() -> dict:
     return {
         "workflow_id": "chat_v2_mistral",
         "name": "Chat v2 Mistral cloud version",
-        "status": "active",
+        "status": "deprecated",
         "description": (
             "Faster variant of Beta Workflow v4 using Mistral models through Cortecs. "
             "Generates a response with sources in a single streaming LLM call, "

@@ -82,7 +82,7 @@ def get_metadata() -> dict:
     return {
         "workflow_id": "chat_v2_local",
         "name": "Chat v2 local version",
-        "status": "active",
+        "status": "inactive",
         "description": (
             "Faster variant of Beta Workflow v4 using Google Gemma 4 26B and 4 "
             "E2B via local DGX Spark with Gemma 4 26B A4B on Scaleway as backup. "

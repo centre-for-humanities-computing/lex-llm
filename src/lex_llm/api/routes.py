@@ -59,6 +59,14 @@ async def run_workflow(
         )
     await _workflow_semaphore.acquire()
 
+    metadata = mod.get_metadata()
+    # Error out if the workflow is marked as inactive. This allows us to keep the workflow code in the repo for reference or future reactivation, but prevent it from being used in production.
+    if metadata.get("status") == "inactive":
+        raise HTTPException(
+            status_code=503,
+            detail=f"Workflow '{workflow_id}' is currently inactive.",
+        )
+
     orchestrator = mod.get_workflow(request)
     orchestrator.workflow_id = workflow_id
     return StreamingResponse(
