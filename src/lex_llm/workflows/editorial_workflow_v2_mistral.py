@@ -68,7 +68,7 @@ def get_metadata() -> dict:
     return {
         "workflow_id": "editorial_workflow_v2_mistral",
         "name": "Editorial workflow v2 Mistral cloud version",
-        "status": "active",
+        "status": "deprecated",
         "description": (
             "A latency-optimized search-and-synthesis workflow that restructures "
             "answers into 4 sections: interpretation, lead paragraph, "

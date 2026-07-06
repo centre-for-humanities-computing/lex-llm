@@ -91,7 +91,7 @@ def get_metadata() -> dict:
     return {
         "workflow_id": "editorial_workflow_v2_local",
         "name": "Editorial workflow v2 local version",
-        "status": "active",
+        "status": "inactive",
         "description": (
             "A latency-optimized search-and-synthesis workflow that restructures "
             "answers into 4 sections: interpretation, lead paragraph, "
