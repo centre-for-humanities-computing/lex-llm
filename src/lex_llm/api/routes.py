@@ -11,6 +11,9 @@ from .workflow_utils import (
     get_all_workflow_metadata,
 )
 from .observability.run_recorder import get_recorder
+from .observability.logging_setup import get_logger, setup_logging
+
+logger = get_logger()
 
 router = APIRouter()
 
@@ -52,6 +55,13 @@ async def run_workflow(
     # The check + acquire is safe without a lock because there is no
     # ``await`` between them, so no other coroutine can interleave.
     if _workflow_semaphore._value <= 0:  # noqa: SLF001
+        logger.warning(
+            "request_rejected reason=at_capacity workflow=%s conversation_id=%s "
+            "limit=%d",
+            workflow_id,
+            request.conversation_id,
+            _MAX_CONCURRENT_WORKFLOWS,
+        )
         raise HTTPException(
             status_code=429,
             detail="Server is at capacity. Please try again later.",
@@ -59,16 +69,26 @@ async def run_workflow(
         )
     await _workflow_semaphore.acquire()
 
-    metadata = mod.get_metadata()
-    # Error out if the workflow is marked as inactive. This allows us to keep the workflow code in the repo for reference or future reactivation, but prevent it from being used in production.
-    if metadata.get("status") == "inactive":
-        raise HTTPException(
-            status_code=503,
-            detail=f"Workflow '{workflow_id}' is currently inactive.",
-        )
+    try:
+        metadata = mod.get_metadata()
+        # Error out if the workflow is marked as inactive. This allows us to keep the workflow code in the repo for reference or future reactivation, but prevent it from being used in production.
+        if metadata.get("status") == "inactive":
+            raise HTTPException(
+                status_code=503,
+                detail=f"Workflow '{workflow_id}' is currently inactive.",
+            )
 
-    orchestrator = mod.get_workflow(request)
-    orchestrator.workflow_id = workflow_id
+        orchestrator = mod.get_workflow(request)
+        orchestrator.workflow_id = workflow_id
+    except Exception:
+        # Logging only -- re-raised unchanged. Without this the client gets a
+        # bare "Internal Server Error" and the cause is lost entirely.
+        logger.exception(
+            "workflow_setup_failed workflow=%s conversation_id=%s",
+            workflow_id,
+            request.conversation_id,
+        )
+        raise
     return StreamingResponse(
         _guarded_stream(orchestrator.execute(), _workflow_semaphore),
         media_type="application/x-ndjson",
@@ -79,6 +99,8 @@ async def run_workflow(
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Start the RunRecorder on boot, drain on shutdown."""
+    setup_logging()
+    logger.info("service_start max_concurrent_workflows=%d", _MAX_CONCURRENT_WORKFLOWS)
     recorder = get_recorder()
     await recorder.start()
     yield
