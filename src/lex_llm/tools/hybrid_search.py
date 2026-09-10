@@ -26,6 +26,9 @@ from ..utils.retrieval_helpers import (
     deduplicate_chunks_to_sources,
 )
 from ..utils.descriptions import build_search_description
+from ..api.observability.logging_setup import get_logger
+
+logger = get_logger()
 
 
 def hybrid_search(
@@ -65,6 +68,16 @@ def hybrid_search(
         queries: list[str] = context.get("subqueries", [user_input])
         connector = LexDBConnector()
 
+        if not keywords or not queries:
+            logger.warning(
+                "search_degraded reason=empty_query_terms run_id=%s "
+                "conversation_id=%s keywords=%d subqueries=%d",
+                emitter.run_id,
+                emitter.conversation_id,
+                len(keywords),
+                len(queries),
+            )
+
         # ------------------------------------------------------------------ #
         # Hybrid search — raw user query for both semantic and FTS           #
         # ------------------------------------------------------------------ #
@@ -97,6 +110,18 @@ def hybrid_search(
             *fts_chunks,
             k=rrf_k,
         )[:top_k]
+
+        if not fused_chunks:
+            logger.warning(
+                "search_empty run_id=%s conversation_id=%s keywords=%d "
+                "subqueries=%d semantic=%d fts=%d",
+                emitter.run_id,
+                emitter.conversation_id,
+                len(keywords),
+                len(queries),
+                sum(len(q) for q in semantic_chunks),
+                sum(len(q) for q in fts_chunks),
+            )
 
         yield emitter.tool_result(
             name="hybrid_search",
