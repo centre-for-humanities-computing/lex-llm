@@ -11,6 +11,9 @@ from .event_models import (
     WorkflowMetricsData,
 )
 from .observability.run_recorder import get_recorder
+from .observability.logging_setup import get_logger
+
+logger = get_logger()
 
 StepFunc = Callable[
     [dict[str, Any], EventEmitter],
@@ -174,12 +177,23 @@ class Orchestrator:
 
     async def execute(self) -> AsyncGenerator[str, None]:
         """Executes the workflow steps and yields NDJSON events."""
-        # Propagate run ID to DGXProvider for nginx trace correlation
-        set_run_id(self.emitter.run_id)
+        try:
+            # Propagate run ID to DGXProvider for nginx trace correlation
+            set_run_id(self.emitter.run_id)
 
-        yield self.emitter.stream_start(
-            conversation_history=self.request.conversation_history
-        )
+            yield self.emitter.stream_start(
+                conversation_history=self.request.conversation_history
+            )
+        except Exception:
+            # Logging only -- re-raised unchanged, so this still escapes the
+            # generator and the client still receives an empty 200 body.
+            logger.exception(
+                "run_start_failed workflow=%s run_id=%s conversation_id=%s",
+                self.workflow_id,
+                self.emitter.run_id,
+                self.request.conversation_id,
+            )
+            raise
 
         t_start = time_module.perf_counter()
         was_deferral = False
@@ -204,19 +218,43 @@ class Orchestrator:
                     was_deferral = True
                     break
 
+        except (GeneratorExit, asyncio.CancelledError):
+            # Logging only -- re-raised unchanged. Nothing may be yielded here.
+            logger.warning(
+                "run_abandoned workflow=%s run_id=%s conversation_id=%s "
+                "elapsed_ms=%.0f answer_chars=%d",
+                self.workflow_id,
+                self.emitter.run_id,
+                self.request.conversation_id,
+                (time_module.perf_counter() - t_start) * 1000,
+                len(self.context.get("final_response") or ""),
+            )
+            raise
+
         except Exception as e:
+            logger.exception(
+                "run_failed workflow=%s step=%s run_id=%s conversation_id=%s "
+                "elapsed_ms=%.0f",
+                self.workflow_id,
+                step_name,  # type: ignore[possibly-undefined]
+                self.emitter.run_id,
+                self.request.conversation_id,
+                (time_module.perf_counter() - t_start) * 1000,
+            )
             error_message = f"Workflow failed at step '{step_name}': {e}"  # type: ignore
             yield self.emitter.error(message=error_message)
             # Emit workflow_metrics even on error
             yield self._emit_workflow_metrics(t_start, step_count, "error")
             # Submit telemetry row
             await self._submit_recorder_row(t_start, "error")
+            self._log_run_summary(t_start, "error", step_count)
             return  # Stop the generator
 
         # Determine outcome before building conversation history
         outcome: str = "deferral" if was_deferral else "ok"
         yield self._emit_workflow_metrics(t_start, step_count, outcome)
         await self._submit_recorder_row(t_start, outcome)
+        self._log_run_summary(t_start, step_count=step_count, outcome=outcome)
 
         # After all steps, construct the final history and end the stream
         final_assistant_message = self.context.get("final_response", "")
@@ -225,6 +263,37 @@ class Orchestrator:
             yield self._build_clean_history(final_assistant_message)
         else:
             yield self._build_legacy_history(final_assistant_message)
+
+    def _log_run_summary(
+        self, t_start: float, outcome: str = "", step_count: int = 0
+    ) -> None:
+        """One line per run -- the primary record for stress-test analysis."""
+        e = self.emitter
+        answer = self.context.get("final_response") or ""
+        ttft = (
+            (e._first_answer_chunk_t - t_start) * 1000
+            if e._first_answer_chunk_t is not None
+            else None
+        )
+        logger.info(
+            "run_end workflow=%s outcome=%s empty=%s run_id=%s "
+            "conversation_id=%s e2e_ms=%.0f ttft_answer_ms=%s steps=%d "
+            "answer_chars=%d docs=%d chunks=%d",
+            self.workflow_id,
+            # Identical to the telemetry row's outcome, so the two join.
+            outcome,
+            # The client received nothing. Reachable on the deferral path too,
+            # not only when outcome is "ok".
+            "yes" if outcome != "error" and not answer else "no",
+            e.run_id,
+            self.request.conversation_id,
+            (time_module.perf_counter() - t_start) * 1000,
+            f"{ttft:.0f}" if ttft is not None else "none",
+            step_count,
+            len(answer),
+            len(self.context.get("retrieved_docs") or []),
+            len(self.context.get("retrieved_chunks") or []),
+        )
 
     def _build_clean_history(self, final_assistant_message: str) -> str:
         """New scheme: clean user message, static system prompt, no source rewriting."""
