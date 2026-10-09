@@ -44,9 +44,6 @@ def main() -> None:
         port=port,
         workers=workers,
         reload=False,
-        # Keep idle connections open longer than uvicorn's 5 s default so the
-        # AU load balancer (Avi) doesn't reuse a connection uvicorn already closed.
-        timeout_keep_alive=30,
     )
 
 
