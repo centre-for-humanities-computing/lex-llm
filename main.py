@@ -44,6 +44,7 @@ def main() -> None:
         port=port,
         workers=workers,
         reload=False,
+        timeout_keep_alive=30,
     )
 
 
