@@ -48,9 +48,7 @@ def get_workflow(request: WorkflowRunRequest) -> Orchestrator:
             ),
             generate_lead_and_body_v2(
                 llm_provider=_llm,
-                system_prompt=get_lead_and_body_prompt_v2(
-                    workflow_description=get_metadata().get("description"),
-                ),
+                system_prompt=get_lead_and_body_prompt_v2(),
                 current_date=_format_date(date.today()),
             ),
             generate_source_list_v2(llm_provider=_llm),
