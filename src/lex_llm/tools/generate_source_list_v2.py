@@ -129,24 +129,9 @@ def _compose_final_response(
     answer_body: str,
     definitions: list,
 ) -> str:
-    """Compose the final structured response for conversation history.
+    """Compose the final response for conversation history.
 
-    (Duplicated from ``generate_source_list._compose_final_response`` to
-    keep this module self-contained; the original is unchanged.)
+    Stored exactly as the user saw it, without section headings, so the model
+    does not copy a "Fortolkning"/"Svar" structure into follow-up answers.
     """
-    sections = []
-
-    if interpretation:
-        sections.append(f"## Fortolkning\n{interpretation}")
-
-    if lead_paragraph:
-        sections.append(f"## Manchet\n{lead_paragraph}")
-
-    if answer_body:
-        sections.append(f"## Svar\n{answer_body}")
-
-    if definitions:
-        def_lines = [f"**{d.term}**: {d.definition}" for d in definitions]
-        sections.append("## Definitioner\n" + "\n".join(def_lines))
-
-    return "\n\n".join(sections)
+    return "\n\n".join(part for part in (lead_paragraph, answer_body) if part)
