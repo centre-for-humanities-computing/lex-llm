@@ -225,6 +225,60 @@ async def test_error_event_with_empty_exception_message() -> None:
     assert _error_message(events) == "Workflow failed at step '_search': TimeoutError"
 
 
+def _error_data(events: list[dict[str, Any]]) -> dict[str, Any]:
+    errors = [e for e in events if e["event"] == "error"]
+    assert len(errors) == 1
+    data: dict[str, Any] = errors[0]["data"]
+    return data
+
+
+def _failing_step(exc: Exception) -> Any:
+    async def _step(
+        context: dict[str, Any], emitter: EventEmitter
+    ) -> AsyncGenerator[str | None, None]:
+        raise exc
+        yield None
+
+    return _step
+
+
+@pytest.mark.asyncio
+async def test_error_event_code_is_cortecs_status() -> None:
+    request = httpx.Request("POST", "https://api.cortecs.ai/v1/chat/completions")
+    exc = openai.RateLimitError(
+        "Error code: 429", response=httpx.Response(429, request=request), body=None
+    )
+
+    events = await _run(Orchestrator(_request(), [(_failing_step(exc), "")]))
+
+    assert _error_data(events)["code"] == "429"
+
+
+@pytest.mark.asyncio
+async def test_error_event_code_is_lexdb_status(
+    monkeypatch: pytest.MonkeyPatch, error_server: str
+) -> None:
+    _point_lexdb_at(monkeypatch, error_server)
+
+    async def _search(
+        context: dict[str, Any], emitter: EventEmitter
+    ) -> AsyncGenerator[str | None, None]:
+        await lex_db_connector.LexDBConnector().batch_fulltext_search(["fregat"])
+        yield None
+
+    events = await _run(Orchestrator(_request(), [(_search, "")]))
+
+    assert _error_data(events)["code"] == "500"
+
+
+@pytest.mark.asyncio
+async def test_error_event_code_empty_without_status() -> None:
+    events = await _run(Orchestrator(_request(), [(_failing_step(TimeoutError()), "")]))
+
+    # code is None and the emitter drops None fields, as before this change.
+    assert "code" not in _error_data(events)
+
+
 # --------------------------------------------------------------------------- #
 # LexDB connector: errors propagate, calls time out                           #
 # --------------------------------------------------------------------------- #
