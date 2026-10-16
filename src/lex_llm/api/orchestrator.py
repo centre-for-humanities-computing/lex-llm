@@ -245,7 +245,11 @@ class Orchestrator:
             error_message = (
                 f"Workflow failed at step '{step_name}': {describe_exception(e)}"  # type: ignore
             )
-            yield self.emitter.error(message=error_message)
+            # Cortecs errors carry .status_code, LexDB errors .status (e.g. 429).
+            code = getattr(e, "status_code", None) or getattr(e, "status", None)
+            yield self.emitter.error(
+                message=error_message, code=str(code) if code else None
+            )
             # Emit workflow_metrics even on error
             yield self._emit_workflow_metrics(t_start, step_count, "error")
             # Submit telemetry row
