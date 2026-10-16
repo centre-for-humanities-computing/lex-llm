@@ -23,6 +23,16 @@ _MAX_CONCURRENT_WORKFLOWS = int(os.getenv("MAX_CONCURRENT_WORKFLOWS", "10"))
 _workflow_semaphore = asyncio.Semaphore(_MAX_CONCURRENT_WORKFLOWS)
 
 
+def _workflow_not_found(workflow_id: str) -> HTTPException:
+    return HTTPException(
+        status_code=404,
+        detail={
+            "msg": f"Workflow '{workflow_id}' not found.",
+            "available_workflows": list_workflow_modules(),
+        },
+    )
+
+
 async def _guarded_stream(
     inner: AsyncGenerator[str, None],
     semaphore: asyncio.Semaphore,
@@ -40,16 +50,13 @@ async def _guarded_stream(
 async def run_workflow(
     workflow_id: str, request: WorkflowRunRequest
 ) -> StreamingResponse:
+    # Checked up front: get_workflow_module raises for an unknown id, which
+    # would otherwise reach the client as a bare 500.
+    if workflow_id not in list_workflow_modules():
+        raise _workflow_not_found(workflow_id)
     mod = get_workflow_module(workflow_id)
-    if not mod or not hasattr(mod, "get_workflow"):
-        available = list_workflow_modules()
-        return StreamingResponse(
-            status_code=404,
-            content={
-                "detail": f"Workflow '{workflow_id}' not found.",
-                "available_workflows": available,
-            },
-        )
+    if not hasattr(mod, "get_workflow"):
+        raise _workflow_not_found(workflow_id)
 
     # Fast-fail: reject immediately if all workflow slots are taken.
     # The check + acquire is safe without a lock because there is no
@@ -114,16 +121,11 @@ async def all_workflow_metadata() -> JSONResponse:
 
 @router.get("/workflows/{workflow_id}/metadata")
 async def workflow_metadata(workflow_id: str) -> JSONResponse:
+    if workflow_id not in list_workflow_modules():
+        raise _workflow_not_found(workflow_id)
     mod = get_workflow_module(workflow_id)
-    if not mod or not hasattr(mod, "get_metadata"):
-        available = list_workflow_modules()
-        raise HTTPException(
-            status_code=404,
-            detail={
-                "msg": f"Workflow '{workflow_id}' not found.",
-                "available_workflows": available,
-            },
-        )
+    if not hasattr(mod, "get_metadata"):
+        raise _workflow_not_found(workflow_id)
     return JSONResponse(content=mod.get_metadata())
 
 

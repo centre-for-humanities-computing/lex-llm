@@ -12,6 +12,7 @@ from .event_models import (
 )
 from .observability.run_recorder import get_recorder
 from .observability.logging_setup import get_logger
+from ..utils.errors import describe_exception
 
 logger = get_logger()
 
@@ -90,7 +91,7 @@ class Orchestrator:
                     status="failed",
                     description=step_description,
                     output={"duration_ms": duration_ms, **step_telemetry},
-                    error=str(exc),
+                    error=describe_exception(exc),
                 )
             )
             raise
@@ -241,7 +242,9 @@ class Orchestrator:
                 self.request.conversation_id,
                 (time_module.perf_counter() - t_start) * 1000,
             )
-            error_message = f"Workflow failed at step '{step_name}': {e}"  # type: ignore
+            error_message = (
+                f"Workflow failed at step '{step_name}': {describe_exception(e)}"  # type: ignore
+            )
             yield self.emitter.error(message=error_message)
             # Emit workflow_metrics even on error
             yield self._emit_workflow_metrics(t_start, step_count, "error")

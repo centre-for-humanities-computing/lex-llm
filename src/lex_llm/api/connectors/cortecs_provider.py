@@ -8,13 +8,23 @@ litellm provider.
 import os
 from typing import AsyncGenerator, List
 
+import httpx
 from openai import AsyncOpenAI
 
 from .llm_provider import LLMProvider
 from ..event_models import ConversationMessage
 from ..observability.logging_setup import get_logger
+from ...utils.errors import describe_exception
 
 logger = get_logger()
+
+# The openai SDK defaults to a 600 s timeout and 2 retries; set both explicitly.
+# All calls stream, so the read timeout bounds the wait for the first token and
+# every gap between tokens. Only a call that has not started streaming is
+# retried. Worst case before the step fails: (1 + retries) * timeout + backoff,
+# about 121 s by default.
+_TIMEOUT = httpx.Timeout(float(os.getenv("CORTECS_TIMEOUT_S", "60")), connect=5.0)
+_MAX_RETRIES = int(os.getenv("CORTECS_MAX_RETRIES", "1"))
 
 # Provider error bodies can echo the request back, which would put user
 # queries and retrieved article text into the log. Bound what we record.
@@ -22,8 +32,8 @@ _MAX_DETAIL = 500
 
 
 def _detail(exc: Exception) -> str:
-    """One-line, length-capped rendering of a provider exception."""
-    text = str(exc).replace("\n", " ")
+    """One-line, length-capped rendering of a provider exception and its cause."""
+    text = describe_exception(exc)
     return text[:_MAX_DETAIL] + "..." if len(text) > _MAX_DETAIL else text
 
 
@@ -52,6 +62,8 @@ class CortecsProvider(LLMProvider):
         self._client = AsyncOpenAI(
             api_key=os.getenv("CORTECS_API_KEY", ""),
             base_url=os.getenv("CORTECS_BASE_URL", "https://api.cortecs.ai/v1"),
+            timeout=_TIMEOUT,
+            max_retries=_MAX_RETRIES,
         )
 
     async def generate_stream(
@@ -71,7 +83,7 @@ class CortecsProvider(LLMProvider):
             )
         except Exception as exc:
             # Logging only -- re-raised unchanged. phase=open means the SDK
-            # already retried twice before giving up.
+            # already retried _MAX_RETRIES times before giving up.
             logger.warning(
                 "cortecs_error phase=open model=%s type=%s detail=%s",
                 self.model,

@@ -1,5 +1,4 @@
 import asyncio
-import httpx
 import os
 from typing_extensions import deprecated
 from pydantic import BaseModel
@@ -18,6 +17,12 @@ lexdb_client = ApiClient(
     configuration=Configuration(host=os.getenv("DB_HOST", "http://localhost:8000"))
 )
 lexdb_api = LexDbApi(api_client=lexdb_client)
+
+# The generated client (urllib3) has no timeout unless one is passed per call,
+# so a hung LexDB would hold the request until Apache gives up.
+# (connect, read) in seconds. Read is above LexDB's own 30 s wait for a
+# database connection, so its PoolTimeout error reaches us before we give up.
+_LEXDB_TIMEOUT = (5.0, float(os.getenv("LEXDB_TIMEOUT_S", "35")))
 
 
 class LexChunk(BaseModel):
@@ -86,35 +91,39 @@ def group_chunks_to_articles(chunks: list[LexChunk]) -> list[LexArticle]:
 
 
 class LexDBConnector:
-    """Handles communication with the Lex DB service."""
+    """Handles communication with the Lex DB service.
+
+    Errors are deliberately not caught here. A failed or unreachable LexDB
+    raises (``ApiException`` carrying the HTTP status and response body, or a
+    ``urllib3`` error), so the workflow step fails with the real cause instead
+    of silently continuing with zero search results.
+    """
 
     async def vector_search(
         self, query: str, top_k: int = 5, index_name: str = "small_003"
     ) -> list[LexChunk]:
         """Performs a vector search against the knowledge base."""
 
-        try:
-            vec_req = VectorSearchRequest(query_text=query, top_k=top_k)
-            vector_search_result = await asyncio.to_thread(
-                lexdb_api.vector_search, index_name, vec_req
-            )
-            if vector_search_result.results:
-                return [
-                    LexChunk(
-                        article_id=int(result.source_article_id),
-                        chunk_seq=result.chunk_seq,
-                        chunk_text=result.chunk_text,
-                        title=result.title,
-                        url=result.url,
-                    )
-                    for result in vector_search_result.results
-                ]
+        vec_req = VectorSearchRequest(query_text=query, top_k=top_k)
+        vector_search_result = await asyncio.to_thread(
+            lexdb_api.vector_search,
+            index_name,
+            vec_req,
+            _request_timeout=_LEXDB_TIMEOUT,
+        )
+        if vector_search_result.results:
+            return [
+                LexChunk(
+                    article_id=int(result.source_article_id),
+                    chunk_seq=result.chunk_seq,
+                    chunk_text=result.chunk_text,
+                    title=result.title,
+                    url=result.url,
+                )
+                for result in vector_search_result.results
+            ]
 
-            return []
-        except httpx.RequestError as e:
-            print(f"Error connecting to LexDB: {e}")
-            # TODO: more robust error handling/logging
-            return []
+        return []
 
     @deprecated(
         "Orchestrate hybrid search as a separate step instead of within the connector"
@@ -130,36 +139,35 @@ class LexDBConnector:
         methods: list[SearchMethod] | None = None,
     ) -> list[LexChunk]:
         """Performs hybrid search using RRF fusion via the lex-db API."""
-        try:
-            hybrid_req = HybridSearchRequest(
-                query_text=query,
-                top_k=top_k,
-                top_k_semantic=top_k_semantic,
-                top_k_fts=top_k_fts,
-                rrf_k=rrf_k,
-                methods=methods,
-            )
+        hybrid_req = HybridSearchRequest(
+            query_text=query,
+            top_k=top_k,
+            top_k_semantic=top_k_semantic,
+            top_k_fts=top_k_fts,
+            rrf_k=rrf_k,
+            methods=methods,
+        )
 
-            hybrid_search_result = await asyncio.to_thread(
-                lexdb_api.hybrid_search, index_name, hybrid_req
-            )
+        hybrid_search_result = await asyncio.to_thread(
+            lexdb_api.hybrid_search,
+            index_name,
+            hybrid_req,
+            _request_timeout=_LEXDB_TIMEOUT,
+        )
 
-            if hybrid_search_result.results:
-                return [
-                    LexChunk(
-                        article_id=int(result.article_id),
-                        chunk_seq=result.chunk_sequence,
-                        chunk_text=result.chunk_text,
-                        title=result.title,
-                        url=result.url,
-                    )
-                    for result in hybrid_search_result.results
-                ]
+        if hybrid_search_result.results:
+            return [
+                LexChunk(
+                    article_id=int(result.article_id),
+                    chunk_seq=result.chunk_sequence,
+                    chunk_text=result.chunk_text,
+                    title=result.title,
+                    url=result.url,
+                )
+                for result in hybrid_search_result.results
+            ]
 
-            return []
-        except httpx.RequestError as e:
-            print(f"Error connecting to LexDB: {e}")
-            return []
+        return []
 
     @deprecated(
         "Orchestrate HyDE search as a separate step instead of within the connector"
@@ -169,27 +177,23 @@ class LexDBConnector:
     ) -> list[LexChunk]:
         """Performs HyDE (Hypothetical Document Embeddings) search against the knowledge base."""
 
-        try:
-            hyde_req = VectorSearchRequest(query_text=query, top_k=top_k)
-            hyde_search_result = await asyncio.to_thread(
-                lexdb_api.hyde_search, index_name, hyde_req
-            )
-            if hyde_search_result.results:
-                return [
-                    LexChunk(
-                        article_id=int(result.source_article_id),
-                        chunk_seq=result.chunk_seq,
-                        chunk_text=result.chunk_text,
-                        title=result.title,
-                        url=result.url,
-                    )
-                    for result in hyde_search_result.results
-                ]
+        hyde_req = VectorSearchRequest(query_text=query, top_k=top_k)
+        hyde_search_result = await asyncio.to_thread(
+            lexdb_api.hyde_search, index_name, hyde_req, _request_timeout=_LEXDB_TIMEOUT
+        )
+        if hyde_search_result.results:
+            return [
+                LexChunk(
+                    article_id=int(result.source_article_id),
+                    chunk_seq=result.chunk_seq,
+                    chunk_text=result.chunk_text,
+                    title=result.title,
+                    url=result.url,
+                )
+                for result in hyde_search_result.results
+            ]
 
-            return []
-        except httpx.RequestError as e:
-            print(f"Error connecting to LexDB: {e}")
-            return []
+        return []
 
     async def batch_vector_search(
         self,
@@ -205,35 +209,34 @@ class LexDBConnector:
         Results are returned as a list of lists — one inner list per query —
         preserving per-query ranking for downstream RRF fusion.
         """
-        try:
-            # BatchVectorSearchRequest expects queries as list of [query_text, TextType] pairs
-            query_pairs: list[list[str]] = [[text, tt.value] for text, tt in queries]
-            batch_req = BatchVectorSearchRequest(queries=query_pairs, top_k=top_k)
-            batch_results = await asyncio.to_thread(
-                lexdb_api.batch_vector_search, index_name, batch_req
-            )
+        # BatchVectorSearchRequest expects queries as list of [query_text, TextType] pairs
+        query_pairs: list[list[str]] = [[text, tt.value] for text, tt in queries]
+        batch_req = BatchVectorSearchRequest(queries=query_pairs, top_k=top_k)
+        batch_results = await asyncio.to_thread(
+            lexdb_api.batch_vector_search,
+            index_name,
+            batch_req,
+            _request_timeout=_LEXDB_TIMEOUT,
+        )
 
-            # batch_results is a list of VectorSearchResults (one per query)
-            per_query_chunks: list[list[LexChunk]] = []
-            for search_results in batch_results:
-                query_chunks: list[LexChunk] = []
-                if search_results.results:
-                    for result in search_results.results:
-                        query_chunks.append(
-                            LexChunk(
-                                article_id=int(result.source_article_id),
-                                chunk_seq=result.chunk_seq,
-                                chunk_text=result.chunk_text,
-                                title=result.title,
-                                url=result.url,
-                            )
+        # batch_results is a list of VectorSearchResults (one per query)
+        per_query_chunks: list[list[LexChunk]] = []
+        for search_results in batch_results:
+            query_chunks: list[LexChunk] = []
+            if search_results.results:
+                for result in search_results.results:
+                    query_chunks.append(
+                        LexChunk(
+                            article_id=int(result.source_article_id),
+                            chunk_seq=result.chunk_seq,
+                            chunk_text=result.chunk_text,
+                            title=result.title,
+                            url=result.url,
                         )
-                per_query_chunks.append(query_chunks)
+                    )
+            per_query_chunks.append(query_chunks)
 
-            return per_query_chunks
-        except httpx.RequestError as e:
-            print(f"Error connecting to LexDB: {e}")
-            return [[] for _ in queries]
+        return per_query_chunks
 
     async def batch_fulltext_search(
         self,
@@ -246,29 +249,28 @@ class LexDBConnector:
         Results are returned as a list of lists — one inner list per query —
         preserving per-query ranking for downstream RRF fusion.
         """
-        try:
-            batch_req = BatchFulltextSearchRequest(queries=queries, top_k=top_k)
-            batch_results = await asyncio.to_thread(
-                lexdb_api.batch_fulltext_search, index_name, batch_req
-            )
+        batch_req = BatchFulltextSearchRequest(queries=queries, top_k=top_k)
+        batch_results = await asyncio.to_thread(
+            lexdb_api.batch_fulltext_search,
+            index_name,
+            batch_req,
+            _request_timeout=_LEXDB_TIMEOUT,
+        )
 
-            # batch_results is a list of lists of RetrievalResult (one inner list per query)
-            per_query_chunks: list[list[LexChunk]] = []
-            for query_results in batch_results:
-                query_chunks: list[LexChunk] = []
-                for result in query_results:
-                    query_chunks.append(
-                        LexChunk(
-                            article_id=int(result.article_id),
-                            chunk_seq=result.chunk_sequence,
-                            chunk_text=result.chunk_text,
-                            title=result.title,
-                            url=result.url,
-                        )
+        # batch_results is a list of lists of RetrievalResult (one inner list per query)
+        per_query_chunks: list[list[LexChunk]] = []
+        for query_results in batch_results:
+            query_chunks: list[LexChunk] = []
+            for result in query_results:
+                query_chunks.append(
+                    LexChunk(
+                        article_id=int(result.article_id),
+                        chunk_seq=result.chunk_sequence,
+                        chunk_text=result.chunk_text,
+                        title=result.title,
+                        url=result.url,
                     )
-                per_query_chunks.append(query_chunks)
+                )
+            per_query_chunks.append(query_chunks)
 
-            return per_query_chunks
-        except httpx.RequestError as e:
-            print(f"Error connecting to LexDB: {e}")
-            return [[] for _ in queries]
+        return per_query_chunks
