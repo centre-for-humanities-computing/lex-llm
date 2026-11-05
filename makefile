@@ -25,7 +25,7 @@ generate-api:
 	docker run --rm \
 		--user $(shell id -u):$(shell id -g) \
 		-v ${PWD}:/local \
-		openapitools/openapi-generator-cli generate \
+		openapitools/openapi-generator-cli:v7.26.0 generate \
 		-i /local/openapi/lex-db.yaml \
 		-g python \
 		-o /local/build/lex_db_api \
