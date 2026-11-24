@@ -119,6 +119,36 @@ components:
           title: Detail
       type: object
       title: HTTPValidationError
+    LLMConfig:
+      properties:
+        base_url:
+          type: string
+          minLength: 1
+          title: Base Url
+        api_key:
+          type: string
+          minLength: 1
+          format: password
+          title: Api Key
+          writeOnly: true
+        model:
+          type: string
+          minLength: 1
+          title: Model
+        extra_body:
+          anyOf:
+          - additionalProperties: true
+            type: object
+          - type: 'null'
+          title: Extra Body
+          description: Provider-specific request fields, sent unchanged
+      type: object
+      required:
+      - base_url
+      - api_key
+      - model
+      title: LLMConfig
+      description: LLM endpoint chosen by the caller, for workflows that accept one.
     ValidationError:
       properties:
         loc:
@@ -154,6 +184,10 @@ components:
           type: string
           title: Conversation Id
           description: A unique identifier for the conversation (UUID)
+        llm:
+          anyOf:
+          - $ref: '#/components/schemas/LLMConfig'
+          - type: 'null'
       type: object
       required:
       - user_input
