@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, SecretStr, field_validator
 from typing import Dict, List, Optional, Any, Union, Literal
 
 
@@ -8,12 +8,45 @@ class ConversationMessage(BaseModel):
     content: str
 
 
+class LLMConfig(BaseModel):
+    """LLM endpoint chosen by the caller, for workflows that accept one."""
+
+    base_url: str = Field(..., min_length=1)
+    api_key: SecretStr = Field(..., min_length=1)
+    model: str = Field(..., min_length=1)
+    extra_body: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description="Provider-specific request fields, sent unchanged",
+    )
+
+    @field_validator("base_url", "model", "api_key")
+    @classmethod
+    def _not_blank(cls, v: Union[str, SecretStr]) -> Union[str, SecretStr]:
+        raw = v.get_secret_value() if isinstance(v, SecretStr) else v
+        if not raw.strip():
+            raise ValueError("must not be blank")
+        return v
+
+    @field_validator("extra_body")
+    @classmethod
+    def _no_reserved_keys(cls, v: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+        # The SDK merges extra_body over the request body, so these would
+        # silently replace the fields the provider sets itself.
+        reserved = {"model", "messages", "stream"} & set(v or {})
+        if reserved:
+            raise ValueError(
+                f"must not contain {sorted(reserved)}; set the model in 'model'"
+            )
+        return v
+
+
 class WorkflowRunRequest(BaseModel):
     user_input: str
     conversation_history: List[ConversationMessage] = Field(default_factory=list)
     conversation_id: str = Field(
         ..., description="A unique identifier for the conversation (UUID)"
     )
+    llm: Optional[LLMConfig] = None
 
 
 class Source(BaseModel):
